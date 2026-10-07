@@ -277,6 +277,8 @@ class TipLangBarToggleButton : public TipLangBarButton,
   // Represents the index of the selected menu item.
   UINT menu_selected_;
   bool disabled_;
+  // IMi：最後にアイコンを渡したときにタスクバーが明るかったか
+  bool light_taskbar_ = false;
   std::wstring description_for_enabled_;
   TipLangBarMenuData menu_data_for_disabled_;
 };

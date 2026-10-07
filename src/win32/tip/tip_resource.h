@@ -76,6 +76,14 @@
 #define IDI_HALF_KATAKANA_NT 121
 #define IDI_DISABLED 122
 #define IDI_DISABLED_NT 123
+// IMi：タスクバーが明るいとき（Windows モードが「ライト」）の入力モードのアイコン（黒い文字）
+#define IDI_DIRECT_LIGHT 124
+#define IDI_HIRAGANA_LIGHT 125
+#define IDI_FULL_KATAKANA_LIGHT 126
+#define IDI_HALF_ALPHANUMERIC_LIGHT 127
+#define IDI_FULL_ALPHANUMERIC_LIGHT 128
+#define IDI_HALF_KATAKANA_LIGHT 129
+#define IDI_DISABLED_LIGHT 130
 
 // Next default values for new objects
 //

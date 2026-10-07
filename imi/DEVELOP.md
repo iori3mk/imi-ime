@@ -16,7 +16,7 @@
 - **辞書**：Mozc の辞書に、SudachiDict の名詞（`src/data/dictionary_oss/dictionary09.txt`）と、話し言葉の読み（「言う」の「ゆう」、`dictionary10.txt`）を加えています。
 - **語の意味**：選んでいる候補の意味を、ウィクショナリー日本語版から作った辞書（`wikt_dict.bin`）で表示します。`src/context_rerank/wikt_dict`
 - **キー**：入力中は無変換で半角英数、変換でひらがな。何も入力していないときは無変換で IME オフ、変換で IME オン。
-- **画面**：候補の窓と意味の窓のスタイル（`src/renderer/win32/imi_theme`。設定と Windows の配色から色・字体・大きさを決める）、選んでいる候補の角を丸めた帯・差し色の番号・太字、意味の窓の辞書らしい描き方（`infolist_window.cc`）、設定画面（左に項目の一覧、カード、見た目のページの見本）、テキストボックスの外でも入力モードの表示とメニューを保つ（`src/win32/tip/tip_lang_bar_menu.cc`）、製品のアイコン（`imi/icon`）。
+- **画面**：候補の窓と意味の窓のスタイル（`src/renderer/win32/imi_theme`。設定と Windows の配色から色・字体・大きさを決める）、選んでいる候補の角を丸めた帯・差し色の番号・太字、意味の窓の辞書らしい描き方（`infolist_window.cc`）、設定画面（左に項目の一覧、カード、見た目のページの見本）、テキストボックスの外でも入力モードの表示とメニューを保つ（`src/win32/tip/tip_lang_bar_menu.cc`）、タスクバーが明るいとき（Windows モードがライト）は入力モードのアイコンを黒い文字にする（`*_light.ico` は `imi/icon/make_light_mode_icons.py` で作る）、製品のアイコン（`imi/icon`）。
 
 ## 設定
 

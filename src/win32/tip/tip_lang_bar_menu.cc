@@ -93,6 +93,40 @@ std::string GetIconStringIfNecessary(UINT icon_id) {
   return "";
 }
 
+// IMi：タスクバーが明るいか（Windows の「Windows モード」がライトか）。値がなければ暗い（Windows 10 の既定）
+bool IsLightTaskbar() {
+  DWORD value = 0;
+  DWORD size = sizeof(value);
+  if (::RegGetValueW(HKEY_CURRENT_USER,
+                     L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                     L"SystemUsesLightTheme", RRF_RT_REG_DWORD, nullptr, &value,
+                     &size) != ERROR_SUCCESS) {
+    return false;
+  }
+  return value != 0;
+}
+
+// IMi：入力モードのアイコン（白い文字）を、タスクバーが明るいときは黒い文字のものに替える
+UINT ToLightTaskbarIcon(UINT icon_id) {
+  switch (icon_id) {
+    case IDI_DIRECT:
+      return IDI_DIRECT_LIGHT;
+    case IDI_HIRAGANA:
+      return IDI_HIRAGANA_LIGHT;
+    case IDI_FULL_KATAKANA:
+      return IDI_FULL_KATAKANA_LIGHT;
+    case IDI_HALF_ALPHANUMERIC:
+      return IDI_HALF_ALPHANUMERIC_LIGHT;
+    case IDI_FULL_ALPHANUMERIC:
+      return IDI_FULL_ALPHANUMERIC_LIGHT;
+    case IDI_HALF_KATAKANA:
+      return IDI_HALF_KATAKANA_LIGHT;
+    case IDI_DISABLED:
+      return IDI_DISABLED_LIGHT;
+  }
+  return icon_id;
+}
+
 // Loads an icon which is appropriate for the current theme.
 // An icon ID 0 represents "no icon".
 HICON LoadIconFromResource(HINSTANCE instance, UINT icon_id) {
@@ -687,8 +721,11 @@ STDMETHODIMP TipLangBarToggleButton::GetIcon(HICON* icon) {
   //  Excerpt: http://msdn.microsoft.com/en-us/library/ms628718.aspx
   //  The caller must free this icon when it is no longer required by
   //  calling DestroyIcon.
-  *icon = LoadIconFromResource(TipDllModule::module_handle(),
-                               data.icon_id_for_theme_);
+  // IMi：タスクバーが明るいときは黒い文字のアイコンにする（白い文字が見えにくいため）
+  light_taskbar_ = IsLightTaskbar();
+  const UINT icon_id = light_taskbar_ ? ToLightTaskbarIcon(data.icon_id_for_theme_)
+                                      : data.icon_id_for_theme_;
+  *icon = LoadIconFromResource(TipDllModule::module_handle(), icon_id);
   return (*icon ? S_OK : E_FAIL);
 }
 
@@ -728,6 +765,11 @@ HRESULT TipLangBarToggleButton::SelectMenuItem(UINT menu_id) {
       }
       data->flags_ &= ~TF_LBMENUF_RADIOCHECKED;
     }
+  }
+  // IMi：Windows の明るい・暗いが前にアイコンを渡したときから変わっていれば、アイコンを渡し直す
+  // （入力の部品の窓はメッセージ専用で、配色の変更の知らせが届かないため、ここで確かめる）
+  if (IsLightTaskbar() != light_taskbar_) {
+    item_state_changed = true;
   }
   if (item_state_changed) {
     TipLangBarButton::OnUpdate(TF_LBI_ICON | TF_LBI_STATUS | TF_LBI_TEXT);
