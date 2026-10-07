@@ -35,7 +35,7 @@ $(cat "$CHANGES")
 3. 「このアプリがデバイスに変更を加えることを許可しますか？」（発行元：不明）と出たら、「はい」を押します。
 4. 終わったら PC を再起動します。
 
-既定の入力方式にする方法や、ファイルが本物か確かめる方法は、[README](https://github.com/iori3mk/imi-ime#readme) を見てください。
+使い方は [README](https://github.com/iori3mk/imi-ime#readme) を見てください。
 EOF
 gh release create "$TAG" "$MSI" --draft --title "IMi $VER" --notes-file "$NOTES"
 echo "下書きを作りました: $TAG（GitHub のリリースのページで確かめてから公開してください）"
