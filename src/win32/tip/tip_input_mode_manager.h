@@ -125,7 +125,12 @@ class TipInputModeManager : public TipInputModeManagerImpl {
   commands::CompositionMode GetTsfConversionMode() const;
 
  private:
+  // IMi：キーが押された後のモードの変化でだけ入力モードの表示を出す
+  void NotifyInputModeChanged();
+
   bool use_global_mode_ = false;
+  // IMi：入力欄を選んでから（関連付けが外れてから）キーが押されたか
+  bool key_since_focus_ = false;
   StatePair mozc_state_;
   StatePair tsf_state_;
   IndicatorVisibilityTracker indicator_visibility_tracker_;

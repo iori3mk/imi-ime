@@ -159,6 +159,7 @@ TEST(TipInputModeManagerTest, IgnoreConversionModeByGlobalConfig_Issue8583505) {
             commands::HIRAGANA);
 
   // On
+  input_mode_manager.OnTestKey(VirtualKey(), true, false);  // IMi：キーを押してオンにした
   input_mode_manager.OnReceiveCommand(true, commands::HIRAGANA,
                                       commands::HIRAGANA);
   EXPECT_TRUE(input_mode_manager.GetEffectiveOpenClose());
@@ -196,6 +197,7 @@ TEST(TipInputModeManagerTest, HonorConversionMode_Issue8583505) {
             commands::HIRAGANA);
 
   // On
+  input_mode_manager.OnTestKey(VirtualKey(), true, false);  // IMi：キーを押してオンにした
   input_mode_manager.OnReceiveCommand(true, commands::HIRAGANA,
                                       commands::HIRAGANA);
   EXPECT_TRUE(input_mode_manager.GetEffectiveOpenClose());
@@ -239,7 +241,7 @@ TEST(TipInputModeManagerTest, ChangeInputScope) {
   EXPECT_TRUE(input_mode_manager.GetEffectiveOpenClose());
   EXPECT_EQ(input_mode_manager.GetEffectiveConversionMode(),
             commands::FULL_KATAKANA);
-  EXPECT_TRUE(input_mode_manager.IsIndicatorVisible());
+  EXPECT_FALSE(input_mode_manager.IsIndicatorVisible());  // IMi：キー操作なしの切り替えでは出さない
 
   action = input_mode_manager.OnKey(VirtualKey(), true, true);
   EXPECT_FALSE(input_mode_manager.IsIndicatorVisible());
@@ -279,7 +281,7 @@ TEST(TipInputModeManagerTest, HonorOpenCloseModeFromApps_Issue8661096) {
   // An application calls ImmSetOpenStatus(himc, TRUE)
   auto action = input_mode_manager.OnChangeOpenClose(true);
   EXPECT_EQ(action, TipInputModeManager::kUpdateUI);
-  EXPECT_TRUE(input_mode_manager.IsIndicatorVisible());
+  EXPECT_FALSE(input_mode_manager.IsIndicatorVisible());  // IMi：キー操作なしの切り替えでは出さない
   EXPECT_TRUE(input_mode_manager.GetEffectiveOpenClose());
   EXPECT_TRUE(input_mode_manager.GetTsfOpenClose());
 }
@@ -301,6 +303,7 @@ TEST(TipInputModeManagerTest, InputScopeOnSetFocus_GitHubIssue826) {
             commands::HIRAGANA);
 
   // On -> (On + Hiragana)
+  input_mode_manager.OnTestKey(VirtualKey(), true, false);  // IMi：キーを押してオンにした
   input_mode_manager.OnReceiveCommand(true, commands::HIRAGANA,
                                       commands::HIRAGANA);
   EXPECT_TRUE(input_mode_manager.GetEffectiveOpenClose());
@@ -310,7 +313,7 @@ TEST(TipInputModeManagerTest, InputScopeOnSetFocus_GitHubIssue826) {
   action =
       input_mode_manager.OnSetFocus(true, kNativeHiragana, input_scope_email);
   EXPECT_EQ(action, TipInputModeManager::kUpdateUI);
-  EXPECT_TRUE(input_mode_manager.IsIndicatorVisible());
+  EXPECT_TRUE(input_mode_manager.IsIndicatorVisible());  // 直前のキーでの切り替えの表示が残る
   EXPECT_FALSE(input_mode_manager.GetEffectiveOpenClose());
   EXPECT_EQ(input_mode_manager.GetEffectiveConversionMode(),
             commands::HIRAGANA);

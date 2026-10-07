@@ -113,8 +113,18 @@ TipInputModeManagerImpl::StatePair TipInputModeManagerImpl::GetOverriddenState(
   return StatePair(true, states[0]);
 }
 
+// IMi：入力モードの表示（「A」「あ」）は、入力欄を選んでからキーが押された後のモードの変化でだけ出す。
+// 入力欄を選んだときの切り替え（起動の直後の初期の状態との違い、アプリ間で共通にする入力モードへの
+// 合わせ込み）では出さない（理由の分からない表示に見えるため。利用者の指摘、2026-10-07）
+void TipInputModeManager::NotifyInputModeChanged() {
+  if (key_since_focus_) {
+    indicator_visibility_tracker_.OnChangeInputMode();
+  }
+}
+
 // For Mode Indicator.
 TipInputModeManager::Action TipInputModeManager::OnDissociateContext() {
+  key_since_focus_ = false;
   const IndicatorVisibilityTracker::Action action =
       indicator_visibility_tracker_.OnDissociateContext();
   switch (action) {
@@ -127,6 +137,7 @@ TipInputModeManager::Action TipInputModeManager::OnDissociateContext() {
 
 TipInputModeManager::Action TipInputModeManager::OnTestKey(
     const VirtualKey& key, bool is_down, bool eaten) {
+  if (is_down) key_since_focus_ = true;
   const IndicatorVisibilityTracker::Action action =
       indicator_visibility_tracker_.OnTestKey(key, is_down, eaten);
   switch (action) {
@@ -140,6 +151,7 @@ TipInputModeManager::Action TipInputModeManager::OnTestKey(
 TipInputModeManager::Action TipInputModeManager::OnKey(const VirtualKey& key,
                                                        bool is_down,
                                                        bool eaten) {
+  if (is_down) key_since_focus_ = true;
   const IndicatorVisibilityTracker::Action action =
       indicator_visibility_tracker_.OnKey(key, is_down, eaten);
   switch (action) {
@@ -179,7 +191,7 @@ TipInputModeManager::NotifyActionSet TipInputModeManager::OnReceiveCommand(
     action_set |= kNotifySystemConversionMode;
   }
   if (action_set != kNotifyNothing) {
-    indicator_visibility_tracker_.OnChangeInputMode();
+    NotifyInputModeChanged();
   }
   return action_set;
 }
@@ -203,6 +215,7 @@ TipInputModeManager::Action TipInputModeManager::OnSetFocus(
     absl::Span<const InputScope> input_scopes) {
   const StatePair prev_effective = mozc_state_;
 
+  key_since_focus_ = false;
   indicator_visibility_tracker_.OnMoveFocusedWindow();
 
   std::vector<InputScope> new_input_scopes(input_scopes.begin(),
@@ -221,7 +234,7 @@ TipInputModeManager::Action TipInputModeManager::OnSetFocus(
   mozc_state_ = GetOverriddenState(tsf_state_, input_scopes);
   if ((mozc_state_.open_close != prev_effective.open_close) ||
       (mozc_state_.conversion_mode != prev_effective.conversion_mode)) {
-    indicator_visibility_tracker_.OnChangeInputMode();
+    NotifyInputModeChanged();
     return kUpdateUI;
   }
   return kDoNothing;
@@ -234,7 +247,7 @@ TipInputModeManager::Action TipInputModeManager::OnChangeOpenClose(
   tsf_state_.open_close = new_open_close_mode;
   if (prev_open != new_open_close_mode) {
     mozc_state_.open_close = new_open_close_mode;
-    indicator_visibility_tracker_.OnChangeInputMode();
+    NotifyInputModeChanged();
     return kUpdateUI;
   }
   return kDoNothing;
@@ -256,7 +269,7 @@ TipInputModeManager::Action TipInputModeManager::OnChangeConversionMode(
   }
 
   if (prev_effective.conversion_mode != mozc_state_.conversion_mode) {
-    indicator_visibility_tracker_.OnChangeInputMode();
+    NotifyInputModeChanged();
     return kUpdateUI;
   }
   return kDoNothing;
@@ -278,7 +291,7 @@ TipInputModeManager::Action TipInputModeManager::OnChangeInputScope(
   mozc_state_ = GetOverriddenState(tsf_state_, input_scopes);
   if ((mozc_state_.open_close != prev_effective.open_close) ||
       (mozc_state_.conversion_mode != prev_effective.conversion_mode)) {
-    indicator_visibility_tracker_.OnChangeInputMode();
+    NotifyInputModeChanged();
     return kUpdateUI;
   }
   return kDoNothing;
