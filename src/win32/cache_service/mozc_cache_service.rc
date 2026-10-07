@@ -44,7 +44,7 @@ LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
   #if defined(GOOGLE_JAPANESE_INPUT_BUILD)
     #define MOZC_RES_FILE_DESCRIPTION "Google 日本語入力 キャッシュサービス"
   #elif defined(MOZC_BUILD)
-    #define MOZC_RES_FILE_DESCRIPTION "Mozc Cache Service"
+    #define MOZC_RES_FILE_DESCRIPTION "IMi キャッシュサービス"
   #endif
 #endif
 #ifndef MOZC_RES_FILETYPE

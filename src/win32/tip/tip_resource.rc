@@ -123,7 +123,7 @@ END
   #if defined(GOOGLE_JAPANESE_INPUT_BUILD)
     #define MOZC_RES_FILE_DESCRIPTION "Google 日本語入力 TIP モジュール"
   #elif defined(MOZC_BUILD)
-    #define MOZC_RES_FILE_DESCRIPTION "Mozc TIP Module"
+    #define MOZC_RES_FILE_DESCRIPTION "IMi 入力モジュール"
   #endif
 #endif
 #ifndef MOZC_RES_FILETYPE
