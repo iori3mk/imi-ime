@@ -11,7 +11,8 @@
 | [rinna/japanese-gpt2-xsmall](https://huggingface.co/rinna/japanese-gpt2-xsmall) | 小型言語モデル（int8 に変換して同梱） | MIT |
 | [SudachiDict](https://github.com/WorksApplications/SudachiDict) | 辞書に加えた名詞（`src/data/dictionary_oss/dictionary09.txt`） | Apache License 2.0（名詞だけを取り出し、Mozc の辞書の形式に変えた） |
 | [Wikipedia 日本語版](https://ja.wikipedia.org/) | 共起と隣接の表（`tables.bin`）の元になった文 | CC BY-SA 4.0 |
+| [Tatoeba](https://tatoeba.org/) の日本語の文 | 共起と隣接の表（`tables.bin`）の元になった文（暮らしの言い回し） | CC BY 2.0 FR（一部 CC0） |
 | [ウィクショナリー日本語版](https://ja.wiktionary.org/) | 候補の横に出す語の意味（`wikt_dict.bin`。意味の行を取り出し、記法を除いて辞書の形にした） | CC BY-SA（ウィクショナリーの条件に合わせ、`wikt_dict.bin` も CC BY-SA で提供） |
 
-- 表（`tables.bin`・`verb_class.tsv`）は、Wikipedia 日本語版の文から数えた語の組の出現回数で、文そのものは含みません。Wikipedia の条件に合わせて **CC BY-SA 4.0** で提供します（出典：Wikipedia 日本語版の執筆者）。
+- 表（`tables.bin`・`verb_class.tsv`）は、Wikipedia 日本語版の文（`tables.bin` は Tatoeba の日本語の文も）から数えた語の組の出現回数で、文そのものは含みません。Wikipedia の条件に合わせて **CC BY-SA 4.0** で提供します（出典：Wikipedia 日本語版の執筆者、Tatoeba の投稿者）。
 - 小型言語モデルは、元のモデルの重みを int8 に変換したものです（作り方は開発用リポジトリ imi-dev の `phase0/ime_eval/lm_onnx.py`）。

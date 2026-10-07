@@ -111,6 +111,22 @@ bool LmScorer::Load(const std::string& assets, int threads,
       *env_, OrtPath(assets + "/basep_" + precision + ".onnx").c_str(), opts, *prepacked_);
   alt_ = std::make_unique<Ort::Session>(
       *env_, OrtPath(assets + "/alt_" + precision + ".onnx").c_str(), opts, *prepacked_);
+  // IMi：モデルの大きさ（層・頭・1頭の幅）を、文頭の状態の入力（層×2×1×頭×長さ×幅）の形から読む。
+  // xsmall（6・8・64）のほかに small（12・12・64）なども使えるように（2026-10-07）
+  for (size_t i = 0; i < basep_->GetInputCount(); ++i) {
+    const std::vector<int64_t> shape =
+        basep_->GetInputTypeInfo(i).GetTensorTypeAndShapeInfo().GetShape();
+    if (shape.size() == 6 && shape[0] > 0 && shape[3] > 0 && shape[5] > 0) {
+      n_layer_ = static_cast<int>(shape[0]);
+      n_head_ = static_cast<int>(shape[3]);
+      head_dim_ = static_cast<int>(shape[5]);
+      break;
+    }
+  }
+  if (bos_kv_.size() != static_cast<size_t>(n_layer_) * 2 * n_head_ * head_dim_) {
+    std::cerr << "context_rerank: bos_kv.f32 の大きさがモデルと合いません" << std::endl;
+    return false;
+  }
   return true;
 }
 

@@ -4,7 +4,7 @@
 
 ## Mozc との違い（ソースの場所）
 
-- **文脈による候補の並べ替え（T0+K5）**：入力中の文の前後と、直前に確定した文の語を手がかりに、各文節の候補を並べ替えます。表は Wikipedia 日本語版の文から数えた共起と隣接の数（`tables.bin`。写像して引く）。`src/context_rerank/context_reranker`
+- **文脈による候補の並べ替え（T0+K5）**：入力中の文の前後と、直前に確定した文の語を手がかりに、各文節の候補を並べ替えます。表は Wikipedia 日本語版と Tatoeba の日本語の文から数えた共起と隣接の数（`tables.bin`。写像して引く）。`src/context_rerank/context_reranker`
 - **小型言語モデルによる選び直し（B）**：迷う文節は、rinna/japanese-gpt2-xsmall の int8 版（ONNX Runtime）で、候補を入れ替えた文の自然さを比べて選び直します。`src/context_rerank/lm_scorer`
 - **前の文脈**：アプリから受け取ったカーソルの前の文字（TSF）を使い、受け取れないアプリでは確定した文を覚えておきます（5分で忘れる）。`src/context_rerank/context_store`
 - **同時変換**：打っている間から変換して表示し、Enter でそのまま確定します。B は裏のスレッドで計算し、終わり次第表示を差し替えます。`src/engine/engine_converter.cc` の `UpdateLivePreedit`、`src/win32/tip`（問い合わせのタイマー）
