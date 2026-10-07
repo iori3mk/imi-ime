@@ -41,4 +41,4 @@
 
 Mozc の部分は BSD 3-Clause（[LICENSE](LICENSE)）です。IMi で加えた部品と同梱の外部のもの（Qt、ONNX Runtime、小型言語モデル、SudachiDict、Wikipedia・ウィクショナリーから作った表と辞書）の条件は [imi/NOTICE.md](imi/NOTICE.md) にあります。
 
-開発者向けの説明は [imi/DEVELOP.md](imi/DEVELOP.md)、Mozc 自体の説明は [README.mozc.md](README.mozc.md) にあります。
+開発者向けの説明は [imi/DEVELOP.md](imi/DEVELOP.md) にあります。
