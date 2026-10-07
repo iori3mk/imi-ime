@@ -85,6 +85,54 @@ def write_ico(path: pathlib.Path, rgb: tuple[int, int, int]) -> None:
     print(f"{path.name}: {', '.join(str(s) for s, _ in entries)}px, {path.stat().st_size // 1024}KB")
 
 
+# IMi：IME の一覧などに出すロゴ（案C）。墨色の角丸の四角に白いロゴ。Windows に登録できるアイコンは
+# 1つだけで、明るい背景と暗い背景のどちらでも見える必要がある（白一色は明るい背景で見えなかった）
+TILE_RGB = (0x2B, 0x2A, 0x28)
+
+
+def render_tile(size: int) -> tuple[np.ndarray, np.ndarray]:
+    """size×size の色（0〜255）と不透明度（0〜1）。"""
+    yy, xx = (np.mgrid[0:size * SS, 0:size * SS] + 0.5) / SS
+    r = size * 0.22  # 角の丸み
+    dx = np.maximum(np.maximum(r - xx, xx - (size - r)), 0)
+    dy = np.maximum(np.maximum(r - yy, yy - (size - r)), 0)
+    tile = (np.hypot(dx, dy) <= r).astype(np.float32)
+    tile = tile.reshape(size, SS, size, SS).mean(axis=(1, 3))
+    inner = max(int(round(size * 0.8)), 12)
+    logo = render(inner)
+    pad = (size - inner) // 2
+    a = np.zeros((size, size), np.float32)
+    a[pad:pad + inner, pad:pad + inner] = logo
+    rgb = np.empty((size, size, 3), np.float32)
+    rgb[:] = TILE_RGB
+    rgb = rgb * (1 - a[..., None]) + 255 * a[..., None]
+    return rgb, tile
+
+
+def bmp_entry_rgba(rgb: np.ndarray, alpha: np.ndarray) -> bytes:
+    """bmp_entry の、画素ごとに色が違う版。"""
+    size = alpha.shape[0]
+    a = np.round(alpha * 255).astype(np.uint8)[::-1]
+    c = np.clip(np.round(rgb), 0, 255).astype(np.uint8)[::-1]
+    px = np.zeros((size, size, 4), np.uint8)
+    px[..., 0], px[..., 1], px[..., 2], px[..., 3] = c[..., 2], c[..., 1], c[..., 0], a
+    header = struct.pack("<IiiHHIIiiII", 40, size, size * 2, 1, 32, 0, size * size * 4, 0, 0, 0, 0)
+    row = ((size + 31) // 32) * 4
+    return header + px.tobytes() + bytes(row * size)
+
+
+def write_tile_ico(path: pathlib.Path) -> None:
+    entries = [(s, bmp_entry_rgba(*render_tile(s))) for s in SIZES]
+    head = struct.pack("<HHH", 0, 1, len(entries))
+    off = 6 + 16 * len(entries)
+    dirs, blobs = b"", b""
+    for s, data in entries:
+        dirs += struct.pack("<BBBBHHII", s % 256, s % 256, 0, 0, 1, 32, len(data), off + len(blobs))
+        blobs += data
+    path.write_bytes(head + dirs + blobs)
+    print(f"{path.name}: {', '.join(str(s) for s, _ in entries)}px, {path.stat().st_size // 1024}KB")
+
+
 def write_preview(path: pathlib.Path) -> None:
     """確かめ用：白の版を暗い地に、黒の版を明るい地に並べた PNG（各大きさ）。"""
     import zlib
@@ -134,6 +182,9 @@ def write_png(path: pathlib.Path, size: int, rgb: tuple[int, int, int], icon: in
 if __name__ == "__main__":
     write_ico(OUT / "imi_white.ico", (255, 255, 255))
     write_ico(OUT / "imi_black.ico", (17, 17, 17))
+    # IME の一覧・インストーラー・アプリの一覧・設定画面の窓のアイコン（src/data/images/win の
+    # product_icon.ico と product_icon_langbar.ico にはこれを写す）
+    write_tile_ico(OUT / "imi_tile.ico")
     write_preview(OUT / "preview.png")
     # 「IMi について」の画面は、ロゴの下端を色の帯の上端にそろえて描くので、下に少し余白を取る
     write_png(OUT / "imi_black_128.png", 128, (17, 17, 17), icon=84, bottom=14)
