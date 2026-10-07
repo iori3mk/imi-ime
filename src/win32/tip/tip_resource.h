@@ -76,7 +76,8 @@
 #define IDI_HALF_KATAKANA_NT 121
 #define IDI_DISABLED 122
 #define IDI_DISABLED_NT 123
-// IMi：タスクバーが明るいとき（Windows モードが「ライト」）の入力モードのアイコン（黒い文字）
+// IMi: input mode icons (black glyphs) for a light taskbar (Windows mode "Light").
+// Keep comments in this file ASCII: rc.exe reads it and may drop the line after a non-ASCII comment.
 #define IDI_DIRECT_LIGHT 124
 #define IDI_HIRAGANA_LIGHT 125
 #define IDI_FULL_KATAKANA_LIGHT 126

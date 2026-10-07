@@ -43,7 +43,7 @@ IDI_FULL_ALPHANUMERIC     ICON       "data/images/win/ms_alpha_a.ico"
 IDI_HALF_KATAKANA         ICON       "data/images/win/ms_katakana_half_a.ico"
 IDI_DISABLED              ICON       "data/images/win/ms_disabled_a.ico"
 IDI_DISABLED_NT           ICON       "data/images/win/ms_disabled.ico"
-// IMi：タスクバーが明るいときの入力モードのアイコン（imi/icon/make_light_mode_icons.py で作る）
+// IMi: input mode icons for a light taskbar (made by imi/icon/make_light_mode_icons.py)
 IDI_DIRECT_LIGHT              ICON   "data/images/win/ms_direct_input_light.ico"
 IDI_HIRAGANA_LIGHT            ICON   "data/images/win/ms_hiragana_light.ico"
 IDI_FULL_KATAKANA_LIGHT       ICON   "data/images/win/ms_katakana_light.ico"
