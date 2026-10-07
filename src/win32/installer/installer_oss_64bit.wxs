@@ -123,6 +123,8 @@
     <Property Id="ARPPRODUCTICON" Value="add_remove_program_icon.ico" />
 
     <!-- Disable Modify and Repair buttons. -->
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/iori3mk/imi-ime" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/iori3mk/imi-ime#readme" />
     <Property Id="ARPNOMODIFY" Value="1" />
     <Property Id="ARPNOREPAIR" Value="1" />
 
