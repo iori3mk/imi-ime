@@ -15,7 +15,11 @@ TAG="v$VER"
 SHA="$(sha256sum "$MSI" | cut -d' ' -f1 | tr 'a-f' 'A-F')"
 SIZE_MB="$(( $(stat -c %s "$MSI") / 1024 / 1024 ))"
 NOTES="$(mktemp)"
-trap 'rm -f "$NOTES"' EXIT
+UP="$(mktemp -d)"
+trap 'rm -rf "$NOTES" "$UP"' EXIT
+# 配るファイルの名前は版の番号を付けず IMi.msi に固定する。README のダウンロードのリンク
+# （releases/latest/download/IMi.msi）がいつも最新の版を指すように
+cp "$MSI" "$UP/IMi.msi"
 cat > "$NOTES" <<EOF
 ## 変更点
 
@@ -23,19 +27,22 @@ $(cat "$CHANGES")
 
 ## ダウンロード
 
-- \`$NAME\`（${SIZE_MB}MB）
+- \`IMi.msi\`（版 $VER、${SIZE_MB}MB）
 - SHA-256：\`$SHA\`
 
 対応：Windows 10・11（64ビット）。
 
 ## インストール
 
-1. \`$NAME\` をダブルクリックします。
-2. 「Windows によって PC が保護されました」と出たら、「詳細情報」→「実行」を押します（電子署名を付けていないため出ます）。
-3. 「このアプリがデバイスに変更を加えることを許可しますか？」（発行元：不明）と出たら、「はい」を押します。
-4. 終わったら PC を再起動します。
+1. 下の「Assets」の \`IMi.msi\` を押してダウンロードし、ダブルクリックします。
+2. ブラウザが「一般的にダウンロードされていません」などと警告したら、ダウンロードの一覧の「…」→「保持する」を押します。
+3. 「Windows によって PC が保護されました」と出たら、「詳細情報」→「実行」を押します。
+4. 「このアプリがデバイスに変更を加えることを許可しますか？」と出たら、「はい」を押します。
+5. 終わったら PC を再起動します。
+
+警告は、インストーラーに電子署名を付けていないために出ます。
 
 使い方は [README](https://github.com/iori3mk/imi-ime#readme) を見てください。
 EOF
-gh release create "$TAG" "$MSI" --repo iori3mk/imi-ime --target main --draft --title "IMi $VER" --notes-file "$NOTES"
+gh release create "$TAG" "$UP/IMi.msi" --repo iori3mk/imi-ime --target main --draft --title "IMi $VER" --notes-file "$NOTES"
 echo "下書きを作りました: $TAG（GitHub のリリースのページで確かめてから公開してください）"
