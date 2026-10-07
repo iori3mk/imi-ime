@@ -37,5 +37,5 @@ $(cat "$CHANGES")
 
 使い方は [README](https://github.com/iori3mk/imi-ime#readme) を見てください。
 EOF
-gh release create "$TAG" "$MSI" --draft --title "IMi $VER" --notes-file "$NOTES"
+gh release create "$TAG" "$MSI" --repo iori3mk/imi-ime --target main --draft --title "IMi $VER" --notes-file "$NOTES"
 echo "下書きを作りました: $TAG（GitHub のリリースのページで確かめてから公開してください）"
