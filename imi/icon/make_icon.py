@@ -98,7 +98,7 @@ def render_tile(size: int) -> tuple[np.ndarray, np.ndarray]:
     dy = np.maximum(np.maximum(r - yy, yy - (size - r)), 0)
     tile = (np.hypot(dx, dy) <= r).astype(np.float32)
     tile = tile.reshape(size, SS, size, SS).mean(axis=(1, 3))
-    inner = max(int(round(size * 0.8)), 12)
+    inner = min(size, max(int(round(size * 0.92)), 12))  # ロゴはタイルの幅の 92%（80% では小ぶりだった）
     logo = render(inner)
     pad = (size - inner) // 2
     a = np.zeros((size, size), np.float32)
