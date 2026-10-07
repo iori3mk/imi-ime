@@ -335,6 +335,7 @@ void WindowManager::UpdateLayout(const commands::RendererCommand& command) {
     infolist_window_->SetWindowPos(
         HWND_TOPMOST, 0, 0, 0, 0,
         SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    infolist_window_->UpdateWindow();  // IMi：その場で描き直す（候補の窓と同じ）
 
     if (candidate_window.has_focused_index() &&
         candidate_window.candidate_size() > 0) {
@@ -397,11 +398,16 @@ void WindowManager::UpdateLayout(const commands::RendererCommand& command) {
       main_window_->Invalidate();
       cascading_window_->Invalidate();
     }
+    // IMi：その場で描き直す（描き直しを待つあいだ、新しい大きさの窓の中が黒く、または前の絵のまま
+    // 一瞬見えていた）
+    main_window_->UpdateWindow();
+    cascading_window_->UpdateWindow();
   } else {
     // no cascading window
     if (candidate_changed) {
       main_window_->Invalidate();
     }
+    main_window_->UpdateWindow();  // IMi：上と同じ
     cascading_window_->ShowWindow(SW_HIDE);
   }
 }

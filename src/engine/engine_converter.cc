@@ -1438,6 +1438,35 @@ void EngineConverter::UpdateLivePreedit(const composer::Composer& composer,
   text += Util::Utf32ToUtf8(preedit.substr(preedit.size() - pending_chars));
   live_text_ = std::move(text);
   live_pending_ = pending || holding;
+  FilterLiveSuggestions(kana.GetQueryForConversion());
+}
+
+// IMi（同時変換）：予測の窓から、打った読みの全体（またはその一部）をそのまま変換しただけの候補を除く。
+// 入力中の文字に変換結果を出しているので同じ文の繰り返しになり、漢字が違うと（「変換」と「返還」）
+// 食い違って見えるため。読みが打った文字より先まで続く候補（続きの予測）だけを残し、なければ窓を出さない
+void EngineConverter::FilterLiveSuggestions(absl::string_view reading) {
+  if (!CheckState(SUGGESTION) || segments_.conversion_segments_size() == 0) {
+    return;
+  }
+  Segment* segment = segments_.mutable_conversion_segment(0);
+  bool erased = false;
+  for (int i = static_cast<int>(segment->candidates_size()) - 1; i >= 0; --i) {
+    const converter::Candidate& c = segment->candidate(i);
+    if (c.value == live_text_ || reading.starts_with(c.key)) {
+      segment->erase_candidate(i);
+      erased = true;
+    }
+  }
+  if (!erased) {
+    return;
+  }
+  if (segment->candidates_size() == 0) {
+    converter_->CancelConversion(&segments_);
+    ResetState();
+    return;
+  }
+  UpdateCandidateList();
+  InitializeSelectedCandidateIndices();
 }
 
 // IMi：Space の変換で B が間に合わなかったとき、B が終わっていれば変換し直して候補を差し替える。

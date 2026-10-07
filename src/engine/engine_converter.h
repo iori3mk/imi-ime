@@ -242,6 +242,8 @@ class EngineConverter : public EngineConverterInterface {
   // IMi（同時変換）
   void UpdateLivePreedit(const composer::Composer& composer,
                          const commands::Context& context) override;
+  // IMi（同時変換）：予測の窓から、入力中の文字と同じ文の候補を除く
+  void FilterLiveSuggestions(absl::string_view reading);
   bool HasLivePreedit() const override { return !live_text_.empty(); }
   void RefreshPendingConversion(const composer::Composer& composer,
                                 const commands::Context& context) override;
