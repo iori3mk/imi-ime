@@ -19,7 +19,7 @@
 
 候補を選ぶと、その語の意味を横に出します。
 
-<img src="imi/images/demo_meaning.gif" alt="「じしょ」の候補を選び直すと、意味の窓が切り替わる様子" width="600">
+<img src="imi/images/meaning.png" alt="「辞書」を選んでいるときの候補の窓と意味の窓" width="492">
 
 ## ダウンロードとインストール
 
