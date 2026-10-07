@@ -59,8 +59,11 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "base/config_file_stream.h"
+#include "base/process.h"
+#include "base/version.h"
 #include "client/client.h"
 #include "config/config_handler.h"
 #include "gui/base/stats_config_util.h"
@@ -1171,6 +1174,17 @@ void ConfigDialog::SetupImiTab() {
     QObject::connect(set_default, SIGNAL(clicked()), this, SLOT(SetImiDefault()));
     add_row(c3, "IMi をいつも使う入力方式にする",
             "新しく開いた窓や、PC を起動したときに IMi で始まるようにします。", set_default);
+    // IMi：新しい版の確認。IMi 自身は通信せず、ブラウザでリリースのページを開くだけ
+    QVBoxLayout* c4 = add_card(page);
+    QPushButton* check_update = new QPushButton(QString::fromUtf8("新しい版を確かめる"));
+    QObject::connect(check_update, SIGNAL(clicked()), this, SLOT(OpenImiReleases()));
+    std::string version = Version::GetMozcVersion();
+    if (absl::EndsWith(version, ".100")) version.resize(version.size() - 4);  // 開発版の REVISION は除く
+    const std::string version_label = "今の版：" + version;
+    add_row(c4, version_label.c_str(),
+            "ブラウザで IMi の最新のリリースのページを開きます。版の番号が今の版より新しければ、"
+            "そこから IMi.msi をダウンロードして入れ直してください。",
+            check_update);
     page->addStretch();
   }
   // 入力のしかた
@@ -1310,6 +1324,10 @@ void ConfigDialog::SetupImiTab() {
   }
   nav->setCurrentRow(0);
   resize(std::max(width(), 760), std::max(height(), 600));
+}
+
+void ConfigDialog::OpenImiReleases() {
+  Process::OpenBrowser("https://github.com/iori3mk/imi-ime/releases/latest");
 }
 
 void ConfigDialog::SetImiDefault() {

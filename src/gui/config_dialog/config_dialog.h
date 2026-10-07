@@ -75,6 +75,7 @@ class ConfigDialog : public QDialog, private Ui::ConfigDialog {
   virtual void EnableApplyButton();
   virtual void OpenDictionaryTool();  // IMi のページの「辞書ツールを開く」
   virtual void SetImiDefault();       // IMi：「既定にする」
+  virtual void OpenImiReleases();     // IMi：「新しい版を確かめる」（ブラウザでリリースのページを開く）
   virtual void UpdateImiPreview();    // IMi：見た目のページの見本
 
  protected:
