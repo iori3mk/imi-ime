@@ -51,6 +51,8 @@
 
 ## ライセンス
 
-Mozc の部分は BSD 3-Clause（[LICENSE](LICENSE)）です。IMi で加えた部品と同梱の外部のもの（Qt、ONNX Runtime、小型言語モデル、SudachiDict、Wikipedia・ウィクショナリーから作った表と辞書）の条件は [imi/NOTICE.md](imi/NOTICE.md) にあります。
+ソースコードは BSD 3-Clause です（IMi で加えた部分：Copyright 2026 iori、元の Mozc：Copyright Google。[LICENSE](LICENSE)）。誰でも使う・改造する・配ることができます。配るときは、著作権の表示とライセンスの文を残してください。
+
+同梱の外部のもの（Qt、ONNX Runtime、小型言語モデル、SudachiDict、Wikipedia・ウィクショナリーから作った表と辞書）には、それぞれの条件があります（[imi/NOTICE.md](imi/NOTICE.md)）。表と語の意味の辞書は CC BY-SA です。
 
 開発者向けの説明は [imi/DEVELOP.md](imi/DEVELOP.md) にあります。

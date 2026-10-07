@@ -2,6 +2,7 @@
 
 | もの | 使い方 | 条件 |
 | --- | --- | --- |
+| IMi で加えた部分 | 文脈による選び直し・同時変換・画面など | BSD 3-Clause（Copyright 2026 iori。[LICENSE](../LICENSE)） |
 | [Mozc](https://github.com/google/mozc) | IMi の元 | BSD 3-Clause（[LICENSE](../LICENSE)） |
 | Mozc の辞書（IPAdic、沖縄辞書ほか） | 変換の辞書（`src/data/dictionary_oss/`） | それぞれの条件（`src/data/dictionary_oss/README.txt`。表示を残せば改変・再配布可） |
 | [日本語用例辞書](https://github.com/hiroyuki-komatsu/japanese-usage-dictionary) | 候補の横の「用例」 | BSD 3-Clause |
