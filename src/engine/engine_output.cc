@@ -287,46 +287,24 @@ void FillUsages(const Segment& segment, const CandidateList& cand_list,
     return;
   }
 
-  commands::InformationList* usages = candidate_window_proto->mutable_usages();
-
-  if (port::IsAndroid()) {
-    usages->set_delay(1000);
-  }
-
-  using IndexInfoPair = std::pair<int32_t, commands::Information*>;
-  absl::flat_hash_map<int32_t, IndexInfoPair> usageid_information_map;
-  // Store usages.
+  // IMi：選んでいる候補の意味だけを出す（同じ一覧の、選んでいない候補の意味は出さない）。
+  // 選んでいる候補に意味がなければ、意味の窓そのものを出さない
   for (const Candidate& candidate_ptr : cand_list.focused_page()) {
-    if (candidate_ptr.HasSubcandidateList()) {
+    if (candidate_ptr.HasSubcandidateList() || candidate_ptr.id() != cand_list.focused_id()) {
       continue;
     }
-    const converter::Candidate& candidate =
-        segment.candidate(candidate_ptr.id());
+    const converter::Candidate& candidate = segment.candidate(candidate_ptr.id());
     if (candidate.usage_title.empty()) {
-      continue;
+      return;
     }
-
-    int index;
-    commands::Information* info;
-    const auto info_iter = usageid_information_map.find(candidate.usage_id);
-
-    if (info_iter == usageid_information_map.end()) {
-      index = usages->information_size();
-      info = usages->add_information();
-      info->set_id(candidate.usage_id);
-      info->set_title(candidate.usage_title);
-      info->set_description(candidate.usage_description);
-      info->add_candidate_id(candidate_ptr.id());
-      usageid_information_map.emplace(candidate.usage_id,
-                                      std::make_pair(index, info));
-    } else {
-      index = info_iter->second.first;
-      info = info_iter->second.second;
-      info->add_candidate_id(candidate_ptr.id());
-    }
-    if (candidate_ptr.id() == cand_list.focused_id()) {
-      usages->set_focused_index(index);
-    }
+    commands::InformationList* usages = candidate_window_proto->mutable_usages();
+    commands::Information* info = usages->add_information();
+    info->set_id(candidate.usage_id);
+    info->set_title(candidate.usage_title);
+    info->set_description(candidate.usage_description);
+    info->add_candidate_id(candidate_ptr.id());
+    usages->set_focused_index(0);
+    return;
   }
 }
 

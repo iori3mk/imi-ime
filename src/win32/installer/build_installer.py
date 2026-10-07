@@ -173,6 +173,9 @@ def run_wix4(args) -> None:
     ]
     if args.enable_win_universal_installer:
       commands += ['-define', 'MozcUniversalInstaller=Yes']
+  # IMi：文脈による並べ替えと小型言語モデルの配布物
+  if os.environ.get('MOZC_CONTEXT_RERANK_PACKAGE'):
+    commands += ['-define', 'ContextRerankDir=' + os.environ['MOZC_CONTEXT_RERANK_PACKAGE']]
   exec_command(commands, cwd=os.getcwd())
 
 

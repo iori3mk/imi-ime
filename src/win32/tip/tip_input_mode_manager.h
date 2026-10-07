@@ -87,11 +87,13 @@ class TipInputModeManager : public TipInputModeManagerImpl {
   };
   struct Config {
     bool use_global_mode = false;
+    // IMi：use_global_mode のとき、入力モード（変換モード）も Windows の共有の値に合わせる
+    bool share_conversion_mode = false;
   };
   typedef uint32_t NotifyActionSet;
 
   explicit TipInputModeManager(const Config& config)
-      : use_global_mode_(config.use_global_mode) {}
+      : use_global_mode_(config.use_global_mode && !config.share_conversion_mode) {}
   // Movable
   TipInputModeManager(TipInputModeManager&&) = default;
   TipInputModeManager& operator=(TipInputModeManager&&) = default;

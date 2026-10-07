@@ -2157,6 +2157,10 @@ void UserHistoryPredictor::Finish(const ConversionRequest& request,
     if (result.attributes & converter::Attribute::NO_HISTORY_LEARNING) {
       continue;
     }
+    // IMi：記号1文字の確定からは全角・半角を学習しない（VariantsRewriter::Finish と同じ）
+    if (config::CharacterFormManager::ImiIsSingleSymbol(result.key)) {
+      continue;
+    }
     // Trailing ASCII whitespace might be present in result.value (e.g.
     // alphanumeric keyboard layout commits). Strip it so script type and form
     // can be properly recognized.

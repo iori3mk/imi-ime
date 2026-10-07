@@ -267,10 +267,19 @@ void WindowManager::UpdateLayout(const commands::RendererCommand& command) {
   {
     // Equating |exclusion_area| with |preedit_rect| generally works well and
     // makes most of users happy.
-    const CRect rect(candidate_layout.exclude_region());
-    const Rect preedit_rect(rect.left, rect.top, rect.Width(), rect.Height());
     const bool vertical = (LayoutManager::GetWritingDirection(app_info) ==
                            LayoutManager::VERTICAL_WRITING);
+    // IMi：候補の窓を入力中の文字から少し離す。入力中の文字の範囲を上下（縦書きは左右）に
+    // 広げて扱うので、下に出すときも、画面の端で上に出すときも隙間が空く（論理 5px、拡大率に合わせる）
+    constexpr int kCandidateWindowGap = 5;
+    const int gap = ::MulDiv(kCandidateWindowGap, static_cast<int>(target_dpi), 96);
+    CRect rect(candidate_layout.exclude_region());
+    if (vertical) {
+      rect.InflateRect(gap, 0);
+    } else {
+      rect.InflateRect(0, gap);
+    }
+    const Rect preedit_rect(rect.left, rect.top, rect.Width(), rect.Height());
     // Sometimes |target_point| is set to the top-left of the exclusion area
     // but WindowUtil does not support this case yet.
     // As a workaround, use |preedit_rect.Bottom()| for y-coordinate of the

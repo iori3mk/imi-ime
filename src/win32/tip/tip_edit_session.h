@@ -87,6 +87,10 @@ class TipEditSession {
 
   // Begins an async edit session to submit the current candidate.
   static bool SubmitAsync(TipTextService* text_service, ITfContext* context);
+
+  // IMi（同時変換）：REFRESH_LIVE_CONVERSION を送り、表示を差し替える
+  static bool RefreshLiveConversionAsync(TipTextService* text_service,
+                                         ITfContext* context);
   // Begins an async edit session to cancel the current composition.
   static bool CancelCompositionAsync(TipTextService* text_service,
                                      ITfContext* context);

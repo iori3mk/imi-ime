@@ -362,6 +362,45 @@ message Config {
 
   //////////////////////////////////////////////////////////////
   //
+  // IMi (1000-1019)
+  //
+  // 同時変換（打つそばから変換結果を出す）
+  optional bool imi_live_conversion = 1000 [default = true];
+  // 迷う文節を言語モデル（B）で選び直す
+  optional bool imi_use_lm = 1001 [default = true];
+  // 前に確定した文（前の文脈）を変換に使う
+  optional bool imi_use_context = 1002 [default = true];
+  // 1回目の Space（変換の始め）から候補の一覧を出す（第1候補の用例も見られる）
+  optional bool imi_show_candidates_on_convert = 1003 [default = true];
+  // 候補の窓と意味の窓のスタイル
+  enum ImiWindowStyle {
+    IMI_STYLE_WASHI = 0;  // 和紙と墨（明朝体・生成り色・朱）
+    IMI_STYLE_CLEAN = 1;  // すっきり（ゴシック体・白・青）
+    IMI_STYLE_NIGHT = 2;  // 夜（暗い配色・琥珀）
+  }
+  optional ImiWindowStyle imi_window_style = 1004 [default = IMI_STYLE_WASHI];
+  // 配色（和紙と墨・すっきりの明るい版と暗い版の切り替え。夜はいつも暗い）
+  enum ImiColorMode {
+    IMI_COLOR_AUTO = 0;   // Windows のアプリの明るい・暗いの設定に合わせる
+    IMI_COLOR_LIGHT = 1;
+    IMI_COLOR_DARK = 2;
+  }
+  optional ImiColorMode imi_color_mode = 1005 [default = IMI_COLOR_AUTO];
+  // 候補と意味の字体（空ならスタイルの既定）
+  optional string imi_candidate_font = 1006 [default = ""];
+  // 文字の大きさ
+  enum ImiFontSize {
+    IMI_FONT_NORMAL = 0;
+    IMI_FONT_SMALL = 1;
+    IMI_FONT_LARGE = 2;
+  }
+  optional ImiFontSize imi_font_size = 1007 [default = IMI_FONT_NORMAL];
+  // 入力モード（ひらがな・半角英数など）をすべてのアプリで共通にする。IME の部品（TIP）は設定ファイルを
+  // 読まないので、設定画面が HKCU\Software\IMi の ShareInputMode にも書く
+  optional bool imi_share_input_mode = 1008 [default = true];
+
+  //////////////////////////////////////////////////////////////
+  //
   // Cloud (300-319)
   //
   // Configuration for cloud sync feature. This field is obsolete.

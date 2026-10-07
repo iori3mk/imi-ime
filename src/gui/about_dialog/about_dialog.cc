@@ -118,6 +118,8 @@ AboutDialog::AboutDialog(QWidget *parent)
 
   SetLabelText(label_terms);
   SetLabelText(label_credits);
+  // IMi：製品情報・issues のリンク（Mozc のページ）は出さない。リポジトリを公開するときに付け直す
+  label_terms->setVisible(false);
 
   product_image_ =
       std::make_unique<QImage>(QLatin1String(":/product_logo.png"));

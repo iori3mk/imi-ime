@@ -57,6 +57,7 @@
 #include "base/system_util.h"
 #include "composer/composer.h"
 #include "config/config_handler.h"
+#include "context_rerank/context_store.h"
 #include "converter/attribute.h"
 #include "converter/candidate.h"
 #include "converter/converter_interface.h"
@@ -509,6 +510,19 @@ bool ConverterMain::ExecCommand(absl::string_view line, Segments* segments) {
 
 std::string ConverterMain::ExecCommandToString(absl::string_view line) {
   std::ostringstream oss;
+  // IMi：前の文脈を設定する検証用の命令
+  if (absl::StartsWith(line, "ctxkeys")) {
+    std::vector<std::string> keys;
+    for (absl::string_view k : absl::StrSplit(line.substr(7), ' ', absl::SkipEmpty())) {
+      keys.push_back(k == "-" ? std::string() : std::string(k));
+    }
+    context_rerank::ContextStore::Get().SetKeys(std::move(keys));
+    return "ctx ok";
+  }
+  if (absl::StartsWith(line, "ctxtext")) {
+    context_rerank::ContextStore::Get().SetText(std::string(line.size() > 8 ? line.substr(8) : ""));
+    return "ctx ok";
+  }
   if (ExecCommand(line, &segments_)) {
     PrintSegments(segments_, &oss);
   } else {

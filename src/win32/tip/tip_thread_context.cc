@@ -29,10 +29,13 @@
 
 #include "win32/tip/tip_thread_context.h"
 
+#include <windows.h>
+
 #include <cstdint>
 #include <limits>
 
 #include "base/win32/win_util.h"
+#include "win32/tip/imi_shared_mode.h"
 #include "win32/tip/tip_input_mode_manager.h"
 
 namespace mozc {
@@ -44,6 +47,9 @@ namespace {
 TipInputModeManager::Config GetConfig() {
   TipInputModeManager::Config config;
   config.use_global_mode = WinUtil::IsPerUserInputSettingsEnabled();
+  // 入力モードも共通にするときは、use_global_mode のもとでも Windows の共有の変換モードを読む
+  // （元の Mozc は use_global_mode のとき変換モードをスレッドごとに持ち、Windows の値を読まなかった）
+  config.share_conversion_mode = ImiShareInputMode();
   return config;
 }
 

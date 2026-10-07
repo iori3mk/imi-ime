@@ -28,13 +28,18 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "renderer/win32/candidate_window.h"
+#include "renderer/win32/imi_theme.h"
 
 #include <atlbase.h>
 #include <atltypes.h>
 #include <atlwin.h>
+#include <dwmapi.h>
 #include <wil/resource.h>
 #include <windows.h>
 
+#pragma comment(lib, "dwmapi.lib")
+
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <sstream>
@@ -270,7 +275,17 @@ void CandidateWindow::UpdateDpiDependentResources() {
 
 LRESULT CandidateWindow::OnCreate(LPCREATESTRUCT create_struct) {
   EnableOrDisableWindowForWorkaround();
+  ApplyWindowFrame();
   return 0;
+}
+
+// IMi：四隅を丸め、窓の縁の色をスタイルに合わせる（Windows 11 以降。それより前の Windows では何もしない）
+void CandidateWindow::ApplyWindowFrame() {
+  const DWM_WINDOW_CORNER_PREFERENCE corner = DWMWCP_ROUND;
+  ::DwmSetWindowAttribute(m_hWnd, DWMWA_WINDOW_CORNER_PREFERENCE, &corner,
+                          sizeof(corner));
+  const COLORREF border = ImiTheme::Current().border;
+  ::DwmSetWindowAttribute(m_hWnd, DWMWA_BORDER_COLOR, &border, sizeof(border));
 }
 
 void CandidateWindow::UpdateDpi(uint32_t dpi) {
@@ -348,6 +363,29 @@ void CandidateWindow::OnLButtonDown(UINT nFlags, CPoint point) {
   HandleMouseEvent(nFlags, point, false);
 }
 
+LRESULT CandidateWindow::OnMouseWheel(UINT msg_id, WPARAM wparam,
+                                      LPARAM lparam, BOOL& handled) {
+  // 上に回したら前の候補、下に回したら次の候補（1目盛りで1つ。↑・↓キーと同じ動き）。
+  // タッチパッドなど細かい量は溜めて、1目盛り分（WHEEL_DELTA）ごとに動かす
+  if (send_command_interface_ == nullptr) {
+    return 0;
+  }
+  wheel_delta_ += GET_WHEEL_DELTA_WPARAM(wparam);
+  while (wheel_delta_ >= WHEEL_DELTA || wheel_delta_ <= -WHEEL_DELTA) {
+    commands::SessionCommand command;
+    if (wheel_delta_ > 0) {
+      command.set_type(commands::SessionCommand::CONVERT_PREV_CANDIDATE);
+      wheel_delta_ -= WHEEL_DELTA;
+    } else {
+      command.set_type(commands::SessionCommand::CONVERT_NEXT_CANDIDATE);
+      wheel_delta_ += WHEEL_DELTA;
+    }
+    commands::Output output;
+    send_command_interface_->SendCommand(command, &output);
+  }
+  return 0;
+}
+
 void CandidateWindow::OnLButtonUp(UINT nFlags, CPoint point) {
   HandleMouseEvent(nFlags, point, true);
 }
@@ -418,7 +456,7 @@ void CandidateWindow::DoPaint(HDC dc) {
   DrawShortcutBackground(dc);
   DrawSelectedRect(dc);
   DrawCells(dc);
-  DrawInformationIcon(dc);
+  // IMi：説明のある候補の印（右端の縦の棒）は描かない。選んでいる候補の意味は意味の窓に出る
   DrawVScrollBar(dc);
   DrawFooter(dc);
   DrawFrame(dc);
@@ -449,6 +487,15 @@ void CandidateWindow::UpdateLayout(
     const commands::CandidateWindow& candidates) {
   *candidate_window_ = candidates;
 
+  // IMi：スタイルの設定や Windows の配色が変わっていれば、色と字体を作り直す
+  ImiTheme::Refresh();
+  if (theme_generation_ != ImiTheme::generation()) {
+    theme_generation_ = ImiTheme::generation();
+    UpdateDpiDependentResources();
+    metrics_changed_ = true;
+    if (m_hWnd != nullptr) ApplyWindowFrame();
+  }
+
   // If we detect any change of font parameters, update text renderer
   if (metrics_changed_) {
     text_renderer_->OnThemeChanged();
@@ -468,8 +515,13 @@ void CandidateWindow::UpdateLayout(
       return;
   }
 
-  table_layout_->Initialize(candidate_window_->candidate_size(),
-                            NUMBER_OF_COLUMNS);
+  // IMi：候補が複数ページあるときは、最後のページで候補が少なくても窓の高さを変えない
+  // （高さが変わると窓が動き、ホイールで続けて回せなくなるため）。空いた行は何も描かない
+  int num_rows = candidate_window_->candidate_size();
+  if (candidate_window_->candidate_size() < candidate_window_->size()) {
+    num_rows = std::max<int>(num_rows, candidate_window_->page_size());
+  }
+  table_layout_->Initialize(num_rows, NUMBER_OF_COLUMNS);
   table_layout_->SetWindowBorder(style_.window_border());
 
   // Add a vertical scroll bar if candidate list consists of more than
@@ -486,7 +538,7 @@ void CandidateWindow::UpdateLayout(
       const std::wstring footer_label =
           mozc::win32::Utf8ToWide(candidate_window_->footer().label());
       const Size label_string_size = text_renderer_->MeasureString(
-          TextRenderer::FONTSET_FOOTER_LABEL, L" " + footer_label + L" ");
+          TextRenderer::FONTSET_FOOTER_LABEL, L"    " + footer_label + L" ");  // IMi：候補の左端に揃える分の余裕
       footer_size.width += label_string_size.width;
       footer_size.height =
           std::max(footer_size.height, label_string_size.height);
@@ -498,7 +550,7 @@ void CandidateWindow::UpdateLayout(
           mozc::win32::Utf8ToWide(candidate_window_->footer().sub_label());
       const Size label_string_size =
           text_renderer_->MeasureString(TextRenderer::FONTSET_FOOTER_SUBLABEL,
-                                        L" " + footer_sub_label + L" ");
+                                        L"    " + footer_sub_label + L" ");
       footer_size.width += label_string_size.width;
       footer_size.height =
           std::max(footer_size.height, label_string_size.height);
@@ -548,12 +600,17 @@ void CandidateWindow::UpdateLayout(
     table_layout_->EnsureFooterSize(footer_size);
   }
 
-  table_layout_->SetRowRectPadding(style_.row_rect_padding());
+  // IMi：候補のまわりに余裕を持たせる。行の上下左右の余白は最低 4px（拡大率に合わせる）
+  constexpr int kMinRowRectPadding = 4;
+  table_layout_->SetRowRectPadding(
+      std::max<int>(style_.row_rect_padding(),
+                    static_cast<int>(kMinRowRectPadding *
+                                     GetDPIScalingFactor(dpi_) + 0.5)));
 
   // put a padding in COLUMN_GAP1.
-  // the width is determined to be equal to the width of " ".
+  // IMi：候補の左の空きを半角スペース2つ分にする（Mozc は1つ分）
   const Size gap1_size =
-      text_renderer_->MeasureString(TextRenderer::FONTSET_CANDIDATE, L" ");
+      text_renderer_->MeasureString(TextRenderer::FONTSET_CANDIDATE, L"  ");
   table_layout_->EnsureCellSize(COLUMN_GAP1, gap1_size);
 
   bool description_found = false;
@@ -583,8 +640,9 @@ void CandidateWindow::UpdateLayout(
       std::wstring text;
       text.append(candidate_string);
 
-      const Size rendering_size =
-          text_renderer_->MeasureString(TextRenderer::FONTSET_CANDIDATE, text);
+      // IMi：選んでいる候補は太字で描くので、太字の幅で測る（どの候補も選ばれうる）
+      const Size rendering_size = text_renderer_->MeasureString(
+          TextRenderer::FONTSET_CANDIDATE_FOCUSED, text);
       table_layout_->EnsureCellSize(COLUMN_CANDIDATE, rendering_size);
     }
 
@@ -602,7 +660,8 @@ void CandidateWindow::UpdateLayout(
 
   // Put a padding in COLUMN_GAP2.
   // We use wide padding if there is any description column.
-  const wchar_t* gap2_string = (description_found ? L"   " : L" ");
+  // IMi：説明がないときも半角スペース2つ分の空きを取る（Mozc は1つ分）
+  const wchar_t* gap2_string = (description_found ? L"   " : L"  ");
   const Size gap2_size = text_renderer_->MeasureString(
       TextRenderer::FONTSET_CANDIDATE, gap2_string);
   table_layout_->EnsureCellSize(COLUMN_GAP2, gap2_size);
@@ -662,6 +721,8 @@ void CandidateWindow::DrawCells(HDC dc) {
     const COLUMN_TYPE column_type = kColumnTypes[type_index];
     const TextRenderer::FONT_TYPE font_type = kFontTypes[type_index];
 
+    // IMi：選んでいる候補の番号は差し色で描く（ほかの番号と分けて描く）
+    const int focused = GetFocusedArrayIndex(*candidate_window_);
     std::vector<TextRenderingInfo> display_list;
     for (size_t i = 0; i < candidate_window_->candidate_size(); ++i) {
       const commands::CandidateWindow::Candidate& candidate =
@@ -669,6 +730,16 @@ void CandidateWindow::DrawCells(HDC dc) {
       const std::wstring display_string =
           GetDisplayStringByColumn(candidate, column_type);
       const Rect text_rect = table_layout_->GetCellRect(i, column_type);
+      if (column_type == COLUMN_SHORTCUT && static_cast<int>(i) == focused) {
+        text_renderer_->RenderText(dc, display_string, text_rect,
+                                   TextRenderer::FONTSET_SHORTCUT_ACCENT);
+        continue;
+      }
+      if (column_type == COLUMN_CANDIDATE && static_cast<int>(i) == focused) {
+        text_renderer_->RenderText(dc, display_string, text_rect,
+                                   TextRenderer::FONTSET_CANDIDATE_FOCUSED);
+        continue;
+      }
       display_list.push_back(TextRenderingInfo(display_string, text_rect));
     }
     text_renderer_->RenderTextList(dc, display_list, font_type);
@@ -806,13 +877,16 @@ void CandidateWindow::DrawFooter(HDC dc) {
     right_used = index_guide_size.width;
   }
 
+  // IMi：フッターの文字は候補の文字の左端に揃える
+  left_used = std::max<int>(left_used,
+                            table_layout_->GetCellRect(0, COLUMN_CANDIDATE).Left());
   if (candidate_window_->footer().has_label()) {
     const Rect label_rect(left_used, footer_content_rect.Top(),
                           footer_content_rect.Width() - left_used - right_used,
                           footer_content_rect.Height());
     const std::wstring footer_label =
         mozc::win32::Utf8ToWide(candidate_window_->footer().label());
-    text_renderer_->RenderText(dc, L" " + footer_label + L" ", label_rect,
+    text_renderer_->RenderText(dc, footer_label + L" ", label_rect,
                                TextRenderer::FONTSET_FOOTER_LABEL);
   } else if (candidate_window_->footer().has_sub_label()) {
     const std::wstring footer_sub_label =
@@ -820,7 +894,7 @@ void CandidateWindow::DrawFooter(HDC dc) {
     const Rect label_rect(left_used, footer_content_rect.Top(),
                           footer_content_rect.Width() - left_used - right_used,
                           footer_content_rect.Height());
-    const std::wstring text = L" " + footer_sub_label + L" ";
+    const std::wstring text = footer_sub_label + L" ";
     text_renderer_->RenderText(dc, text, label_rect,
                                TextRenderer::FONTSET_FOOTER_SUBLABEL);
   }
@@ -835,14 +909,20 @@ void CandidateWindow::DrawSelectedRect(HDC dc) {
       focused_array_index < candidate_window_->candidate_size()) {
     (void)candidate_window_->candidate(focused_array_index);
 
-    const CRect selected_rect =
-        ToCRect(table_layout_->GetRowRect(focused_array_index));
-    FillSolidRect(dc, &selected_rect,
-                  ToColorRef(style_.focused_background_color()));
-
-    ::SetDCBrushColor(dc, ToColorRef(style_.focused_border_color()));
-    ::FrameRect(dc, &selected_rect,
-                static_cast<HBRUSH>(::GetStockObject(DC_BRUSH)));
+    // IMi：選んでいる候補は、角を丸めた帯で示す（左右を少し空ける）
+    const double scale_factor = GetDPIScalingFactor(dpi_);
+    CRect selected_rect = ToCRect(table_layout_->GetRowRect(focused_array_index));
+    const int inset = static_cast<int>(3 * scale_factor);
+    selected_rect.DeflateRect(inset, 1);
+    const int r = static_cast<int>(ImiTheme::Current().focus_radius * 2 * scale_factor);
+    wil::unique_select_object old_brush =
+        wil::SelectObject(dc, static_cast<HBRUSH>(::GetStockObject(DC_BRUSH)));
+    wil::unique_select_object old_pen =
+        wil::SelectObject(dc, static_cast<HPEN>(::GetStockObject(DC_PEN)));
+    ::SetDCBrushColor(dc, ToColorRef(style_.focused_background_color()));
+    ::SetDCPenColor(dc, ToColorRef(style_.focused_background_color()));
+    ::RoundRect(dc, selected_rect.left, selected_rect.top, selected_rect.right,
+                selected_rect.bottom, r, r);
   }
 }
 

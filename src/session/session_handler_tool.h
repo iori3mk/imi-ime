@@ -92,6 +92,8 @@ class SessionHandlerTool {
   bool SyncData();
   void SetCallbackText(absl::string_view text);
   bool ReloadSupplementalModel(absl::string_view model_path);
+  // IMi（同時変換）：REFRESH_LIVE_CONVERSION を送る
+  bool RefreshLiveConversion(commands::Output* output);
 
  private:
   bool EvalCommand(commands::Input* input, commands::Output* output);

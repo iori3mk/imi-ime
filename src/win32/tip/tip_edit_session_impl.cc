@@ -28,6 +28,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "win32/tip/tip_edit_session_impl.h"
+#include "win32/tip/imi_shared_mode.h"
 
 #include <inputscope.h>
 #include <msctf.h>
@@ -417,6 +418,17 @@ HRESULT UpdatePrivateContext(TipTextService* text_service, ITfContext* context,
                           input_mode_manager->GetEffectiveOpenClose());
   }
 
+  // IMi：入力モードが変わったら、すべてのアプリで共通の値として書く（imi_shared_mode.h）。
+  // パスワード欄などで一時的に変わる状態（effective）ではなく、利用者が選んだ状態（TSF 側）を書く
+  if (action_set != TipInputModeManager::kNotifyNothing && ImiShareInputMode()) {
+    uint32_t shared_mode = 0;
+    if (ConversionModeUtil::ToNativeMode(input_mode_manager->GetTsfConversionMode(),
+                                         private_context->input_behavior().prefer_kana_input,
+                                         &shared_mode)) {
+      ImiWriteSharedMode(input_mode_manager->GetTsfOpenClose(), shared_mode);
+    }
+  }
+
   if ((action_set & TipInputModeManager::kNotifySystemConversionMode) ==
       TipInputModeManager::kNotifySystemConversionMode) {
     const CompositionMode mozc_mode =
@@ -643,6 +655,16 @@ HRESULT TipEditSessionImpl::UpdateContext(TipTextService* text_service,
   const HRESULT result =
       DoEditSessionInComposition(text_service, context, write_cookie, output);
   UpdateUI(text_service, context, write_cookie);
+  // IMi（同時変換）：B（小型言語モデル）の結果がまだ表示に入っていなければ、
+  // 少し後に表示の作り直しを頼む（tip_text_service.cc の WM_TIMER）。打鍵が続けば
+  // 同じタイマーが掛け直されるので、問い合わせは打鍵が止まったときだけ行う。
+  if (output.live_conversion_pending()) {
+    const HWND window = text_service->renderer_callback_window_handle();
+    if (::IsWindow(window)) {
+      ::SetTimer(window, kLiveConversionRefreshTimerId,
+                 kLiveConversionRefreshIntervalMs, nullptr);
+    }
+  }
   return result;
 }
 

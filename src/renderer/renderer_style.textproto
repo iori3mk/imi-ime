@@ -44,6 +44,8 @@ gap1_style { font_size: 14 }
 candidate_style {
   font_size: 14
   foreground_color { r: 0 g: 0 b: 0 }
+  # IMi：真っ白ではなく、ほんの少しだけクリーム色
+  background_color { r: 255 g: 253 b: 246 }
 }
 description_style {
   font_size: 12
@@ -66,8 +68,8 @@ footer_sub_label_style {
   right_padding: 4
 }
 footer_border_colors { r: 96 g: 96 b: 96 }
-footer_top_color { r: 255 g: 255 b: 255 }
-footer_bottom_color { r: 238 g: 238 b: 238 }
+footer_top_color { r: 255 g: 253 b: 246 }
+footer_bottom_color { r: 240 g: 237 b: 229 }
 logo_file_name: "candidate_window_logo.tiff"
 focused_background_color { r: 209 g: 234 b: 255 }
 focused_border_color { r: 127 g: 172 b: 221 }

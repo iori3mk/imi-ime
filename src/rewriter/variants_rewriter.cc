@@ -31,6 +31,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -633,6 +634,10 @@ void VariantsRewriter::Finish(const ConversionRequest& request,
     if (candidate.attributes & Attribute::NO_VARIANTS_EXPANSION) {
       continue;
     }
+    // IMi：記号1文字の確定からは全角・半角を学習しない
+    if (CharacterFormManager::ImiIsSingleSymbol(segment.key())) {
+      continue;
+    }
 
     switch (candidate.style) {
       case NumberUtil::NumberString::NUMBER_SEPARATED_ARABIC_HALFWIDTH:
@@ -709,6 +714,11 @@ bool VariantsRewriter::Rewrite(const ConversionRequest& request,
   }
 
   for (Segment& segment : segments->conversion_segments()) {
+    // IMi：記号1文字の文節は、全角・半角を前回の形に合わせない
+    std::optional<CharacterFormManager::ImiScopedIgnoreLastForm> ignore_last_form;
+    if (CharacterFormManager::ImiIsSingleSymbol(segment.key())) {
+      ignore_last_form.emplace();
+    }
     modified |= RewriteSegment(type, &segment);
   }
 

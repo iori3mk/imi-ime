@@ -35,4 +35,5 @@
 #define IDS_IME_DISPLAYNAME 101
 // Synonym of IDS_TEXTSERVICE_DISPLAYNAME to update
 // MUI string cache.  See b/2994558 for details.
-#define IDS_TEXTSERVICE_DISPLAYNAME_SYNONYM 201
+// IMi: changed from 201 when the display name became "IMi", so that the MUI string cache is not used.
+#define IDS_TEXTSERVICE_DISPLAYNAME_SYNONYM 202

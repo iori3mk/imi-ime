@@ -73,6 +73,9 @@ class ConfigDialog : public QDialog, private Ui::ConfigDialog {
   virtual void SelectSuggestionSetting(int state);
   virtual void LaunchAdministrationDialog();
   virtual void EnableApplyButton();
+  virtual void OpenDictionaryTool();  // IMi のページの「辞書ツールを開く」
+  virtual void SetImiDefault();       // IMi：「既定にする」
+  virtual void UpdateImiPreview();    // IMi：見た目のページの見本
 
  protected:
   bool eventFilter(QObject* obj, QEvent* event) override;
@@ -98,6 +101,20 @@ class ConfigDialog : public QDialog, private Ui::ConfigDialog {
   int initial_preedit_method_;
   bool initial_use_keyboard_to_change_preedit_method_;
   bool initial_use_mode_indicator_;
+  // IMi のページ（SetupImiTab で作る）
+  void SetupImiTab();
+  QCheckBox* imiHenkanMuhenkanCheckBox_ = nullptr;
+  QCheckBox* imiLiveConversionCheckBox_ = nullptr;
+  QCheckBox* imiUseLmCheckBox_ = nullptr;
+  QCheckBox* imiUseContextCheckBox_ = nullptr;
+  QCheckBox* imiShowCandidatesCheckBox_ = nullptr;
+  QCheckBox* imiShareInputModeCheckBox_ = nullptr;
+  // 見た目のページ
+  QComboBox* imiStyleComboBox_ = nullptr;
+  QComboBox* imiColorModeComboBox_ = nullptr;
+  QComboBox* imiFontComboBox_ = nullptr;  // 先頭は「スタイルの既定」
+  QComboBox* imiFontSizeComboBox_ = nullptr;
+  QWidget* imiPreview_ = nullptr;  // ImiPreviewWidget（config_dialog.cc）
   std::map<QString, config::Config::SessionKeymap>
       keymapname_sessionkeymap_map_;
 };

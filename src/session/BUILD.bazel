@@ -58,6 +58,7 @@ mozc_cc_library(
         "//base:clock",
         "//base:util",
         "//composer",
+        "//context_rerank:context_store",
         "//composer:key_event_util",
         "//composer:table",
         "//engine:engine_converter_interface",
@@ -487,6 +488,7 @@ mozc_cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
     ],
 )

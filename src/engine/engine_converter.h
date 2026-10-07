@@ -32,6 +32,7 @@
 #ifndef MOZC_ENGINE_ENGINE_CONVERTER_H_
 #define MOZC_ENGINE_ENGINE_CONVERTER_H_
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -238,6 +239,16 @@ class EngineConverter : public EngineConverterInterface {
   void FillPreedit(const composer::Composer& composer,
                    commands::Preedit* preedit) const override;
 
+  // IMi（同時変換）
+  void UpdateLivePreedit(const composer::Composer& composer,
+                         const commands::Context& context) override;
+  bool HasLivePreedit() const override { return !live_text_.empty(); }
+  void RefreshPendingConversion(const composer::Composer& composer,
+                                const commands::Context& context) override;
+  void CancelPendingConversion() override { conv_pending_ = false; }
+  bool CommitLivePreedit(const composer::Composer& composer,
+                         const commands::Context& context) override;
+
   // Fills protocol buffers
   void FillOutput(const composer::Composer& composer,
                   commands::Output* output) const override;
@@ -375,6 +386,20 @@ class EngineConverter : public EngineConverterInterface {
   // Sets request type and update the engine_converter's state
   void SetRequestType(ConversionRequest::RequestType request_type,
                       ConversionRequest::Options& options);
+
+  // IMi（同時変換）：表示に出す変換結果と、B の計算待ちか
+  std::string live_text_;
+  bool live_pending_ = false;
+  // Space の変換で B が間に合わず、表の結果で候補を出しているあいだ true（差し替え待ち）
+  bool conv_pending_ = false;
+  // 表示の安定化：前回出した表示の、最後の文節より前の（読み, 表示）と、その読み。
+  // 区切りが変わって前半を据え置いている間は、据え置き始めたときの読みの文字数
+  std::vector<std::pair<std::string, std::string>> live_front_;
+  std::string live_front_reading_;
+  size_t live_hold_since_ = 0;
+  // 入力（ローマ字を含む表示前の文字列）と、それが最後に変わった時刻。打鍵が止まったかの判定に使う
+  std::string live_last_input_;
+  std::chrono::steady_clock::time_point live_last_change_;
 
   std::shared_ptr<const ConverterInterface> converter_;
 

@@ -130,7 +130,7 @@ HRESULT TsfRegistrar::RegisterCOMServer(const wchar_t* path, DWORD length,
     return HRESULT_FROM_WIN32(result);
   }
 
-  std::wstring description = Utf8ToWide(mozc::kProductNameInEnglish);
+  std::wstring description = L"IMi";  // IMi：表示名（kProductNameInEnglish はフォルダ名などに使うので Mozc のまま）
 
   result = key.SetStringValue(nullptr, description.c_str(), REG_SZ);
   if (result != ERROR_SUCCESS) {
@@ -206,7 +206,7 @@ HRESULT TsfRegistrar::RegisterProfiles(std::wstring_view resource_dll_path) {
   if (SUCCEEDED(result)) {
     // We use English name here as culture-invariant description.
     // Localized name is specified later by SetLanguageProfileDisplayName.
-    std::wstring description = Utf8ToWide(mozc::kProductNameInEnglish);
+    std::wstring description = L"IMi";  // IMi：表示名（kProductNameInEnglish はフォルダ名などに使うので Mozc のまま）
 
     result = profiles->AddLanguageProfile(
         TsfProfile::GetTextServiceGuid(), TsfProfile::GetLangId(),

@@ -48,6 +48,7 @@
 #include "composer/composer.h"
 #include "composer/key_event_util.h"
 #include "composer/table.h"
+#include "context_rerank/context_store.h"
 #include "engine/engine_converter_interface.h"
 #include "engine/engine_interface.h"
 #include "protocol/commands.pb.h"
@@ -285,6 +286,10 @@ bool Session::SendCommand(commands::Command* command) {
   if (!command->input().has_command()) {
     return false;
   }
+  // IMi：問い合わせ以外の操作があれば、Space の変換の候補の差し替えは取りやめる
+  if (command->input().command().type() != commands::SessionCommand::REFRESH_LIVE_CONVERSION) {
+    context_->mutable_converter()->CancelPendingConversion();
+  }
   TransformInput(command->mutable_input());
 
   const commands::SessionCommand& session_command = command->input().command();
@@ -371,6 +376,15 @@ bool Session::SendCommand(commands::Command* command) {
     case commands::SessionCommand::CONVERT_NEXT_PAGE:
       result = ConvertNextPage(command);
       break;
+    // IMi：候補の窓のマウスのホイールで候補を1つずつ動かす（変換中のみ）
+    case commands::SessionCommand::CONVERT_NEXT_CANDIDATE:
+      result = context_->state() == ImeContext::CONVERSION ? ConvertNext(command)
+                                                          : DoNothing(command);
+      break;
+    case commands::SessionCommand::CONVERT_PREV_CANDIDATE:
+      result = context_->state() == ImeContext::CONVERSION ? ConvertPrev(command)
+                                                          : DoNothing(command);
+      break;
     case commands::SessionCommand::TURN_ON_IME:
       result = MakeSureIMEOn(command);
       break;
@@ -402,6 +416,16 @@ bool Session::SendCommand(commands::Command* command) {
       }
       break;
     }
+    case commands::SessionCommand::REFRESH_LIVE_CONVERSION:
+      // IMi（同時変換）：B の結果が出ていれば表示を差し替える。
+      // 入力中でなくなっていても、今の表示をそのまま返す（クライアントの表示を消さない）
+      command->mutable_output()->set_consumed(true);
+      // Space の変換で B が間に合わなかったときは、候補を差し替える
+      context_->mutable_converter()->RefreshPendingConversion(context_->composer(),
+                                                              context_->client_context());
+      OutputFromState(command);
+      result = true;
+      break;
     default:
       LOG(WARNING) << "Unknown command" << *command;
       result = DoNothing(command);
@@ -510,6 +534,7 @@ bool Session::TestSendKey(commands::Command* command) {
 bool Session::SendKey(commands::Command* command) {
   UpdateTime();
   UpdatePreferences(command);
+  context_->mutable_converter()->CancelPendingConversion();  // IMi：キーの操作で差し替えを取りやめる
   TransformInput(command->mutable_input());
   // To support indirect IME on/off by using KeyEvent::activated, use effective
   // state instead of directly using context_->state().
@@ -1096,7 +1121,21 @@ bool Session::MakeSureIMEOff(mozc::commands::Command* command) {
 
 bool Session::EchoBack(commands::Command* command) {
   command->mutable_output()->set_consumed(false);
-  context_->mutable_converter()->Reset();
+  // IMi：キーがそのままアプリに渡ると（Enter・矢印・BackSpace など）、カーソルの位置や前の文字が
+  // 変わりうるので、前の文脈の記憶を消す（Mozc もここで自分の履歴を消している）。
+  // Shift などだけのキーと空白は除く。Shift などだけのキーでは、Mozc の履歴も消さない
+  // （文字は変わらないのに、直前の確定が変換に効かなくなるため）
+  bool pure_modifier = false;
+  if (command->has_input() && command->input().has_key()) {
+    const commands::KeyEvent& key = command->input().key();
+    pure_modifier = IsPureModifierKeyEvent(key);
+    if (!pure_modifier && !IsPureSpaceKey(key)) {
+      context_rerank::ContextStore::Get().Clear();
+    }
+  }
+  if (!pure_modifier) {
+    context_->mutable_converter()->Reset();
+  }
   OutputKey(command);
   return true;
 }
@@ -1154,6 +1193,7 @@ bool Session::Revert(commands::Command* command) {
 }
 
 bool Session::ResetContext(commands::Command* command) {
+  context_rerank::ContextStore::Get().Clear();  // IMi：前の文脈の記憶も消す
   if (context_->state() == ImeContext::PRECOMPOSITION) {
     context_->mutable_converter()->Reset();
     return EchoBackAndClearUndoContext(command);
@@ -1780,7 +1820,17 @@ bool Session::CommitInternal(commands::Command* command,
 
   PushUndoContext();
 
-  if (context_->state() == ImeContext::COMPOSITION) {
+  if (context_->state() == ImeContext::COMPOSITION &&
+      context_->converter().HasLivePreedit()) {
+    // IMi（同時変換）：表示している変換結果をそのまま確定する。前の文脈は表示と同じ、入力の始めに
+    // 受け取ったもの（client_context）を使う。Enter のキーに付いてくるカーソルの前の文字は、
+    // アプリによっては入力中の文字そのもの（「なのは」）で、表示と違う変換になるため
+    if (!context_->mutable_converter()->CommitLivePreedit(
+            context_->composer(), context_->client_context())) {
+      context_->mutable_converter()->CommitPreedit(context_->composer(),
+                                                   command->input().context());
+    }
+  } else if (context_->state() == ImeContext::COMPOSITION) {
     context_->mutable_converter()->CommitPreedit(context_->composer(),
                                                  command->input().context());
   } else {  // ImeContext::CONVERSION
@@ -2711,6 +2761,9 @@ void Session::OutputFromState(commands::Command* command) {
 
 void Session::Output(commands::Command* command) {
   OutputMode(command);
+  // IMi（同時変換）：入力中なら変換結果を表示に出す（対象外なら何もしない）
+  context_->mutable_converter()->UpdateLivePreedit(
+      context_->composer(), context_->client_context());
   context_->mutable_converter()->PopOutput(context_->composer(),
                                            command->mutable_output());
 }

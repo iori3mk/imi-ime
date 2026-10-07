@@ -1,0 +1,160 @@
+# IMi：文脈による候補の並べ替え（T0+K5）と、小型言語モデル（B）。
+
+load(
+    "//:build_defs.bzl",
+    "mozc_cc_binary",
+    "mozc_cc_library",
+    "mozc_select",
+)
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["BUILD.onnxruntime.bazel"])
+
+# ONNX Runtime の C++ 版（MODULE.bazel の http_archive）。Windows とそれ以外で配布物を選ぶ
+alias(
+    name = "onnxruntime",
+    actual = select({
+        "@platforms//os:windows": "@onnxruntime_win//:onnxruntime",
+        "//conditions:default": "@onnxruntime_linux//:onnxruntime",
+    }),
+)
+
+mozc_cc_library(
+    name = "sp_unigram",
+    srcs = ["sp_unigram.cc"],
+    hdrs = ["sp_unigram.h"],
+    deps = [
+        "//base:util",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+mozc_cc_binary(
+    name = "sp_unigram_main",
+    srcs = ["sp_unigram_main.cc"],
+    deps = [
+        ":sp_unigram",
+        "//base:init_mozc",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+mozc_cc_library(
+    name = "lm_scorer",
+    srcs = ["lm_scorer.cc"],
+    hdrs = ["lm_scorer.h"],
+    deps = [
+        ":sp_unigram",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
+        ":onnxruntime",
+    ] + mozc_select(windows = ["//base/win32:wide_char"]),
+)
+
+mozc_cc_binary(
+    name = "lm_scorer_main",
+    srcs = ["lm_scorer_main.cc"],
+    deps = [
+        ":lm_scorer",
+        "//base:init_mozc",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+mozc_cc_library(
+    name = "mkey",
+    srcs = ["mkey.cc"],
+    hdrs = ["mkey.h"],
+    deps = [
+        "//base:util",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+mozc_cc_binary(
+    name = "mkey_main",
+    srcs = ["mkey_main.cc"],
+    deps = [
+        ":mkey",
+        "//base:init_mozc",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+mozc_cc_library(
+    name = "context_reranker",
+    srcs = ["context_reranker.cc"],
+    hdrs = ["context_reranker.h"],
+    deps = [
+        ":mkey",
+        "//base:mmap",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+mozc_cc_library(
+    name = "context_store",
+    srcs = ["context_store.cc"],
+    hdrs = ["context_store.h"],
+    deps = [
+        ":mkey",
+        "//base:util",
+        "@com_google_absl//absl/synchronization",
+    ],
+)
+
+mozc_cc_library(
+    name = "live_conversion",
+    srcs = ["live_conversion.cc"],
+    hdrs = ["live_conversion.h"],
+    deps = [
+        "//base:file_util",
+        "//base:system_util",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+mozc_cc_library(
+    name = "wikt_dict",
+    srcs = ["wikt_dict.cc"],
+    hdrs = ["wikt_dict.h"],
+    deps = [
+        ":live_conversion",
+        "//base:file_util",
+        "//base:mmap",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+mozc_cc_library(
+    name = "context_rerank_rewriter",
+    srcs = ["context_rerank_rewriter.cc"],
+    hdrs = ["context_rerank_rewriter.h"],
+    deps = [
+        ":context_reranker",
+        ":context_store",
+        ":live_conversion",
+        ":lm_scorer",
+        ":mkey",
+        "//base:file_stream",
+        "//base:file_util",
+        "//base:system_util",
+        "//base:util",
+        "//converter:segments",
+        "//request:conversion_request",
+        "//rewriter:rewriter_interface",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+    ],
+)

@@ -45,6 +45,9 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/numbers.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "base/config_file_stream.h"
 #include "base/file_util.h"
@@ -188,6 +191,14 @@ bool SessionHandlerTool::SubmitCandidate(uint32_t id,
   input.set_type(commands::Input::SEND_COMMAND);
   input.mutable_command()->set_type(commands::SessionCommand::SUBMIT_CANDIDATE);
   input.mutable_command()->set_id(id);
+  return EvalCommand(&input, output);
+}
+
+bool SessionHandlerTool::RefreshLiveConversion(commands::Output* output) {
+  commands::Input input;
+  input.set_type(commands::Input::SEND_COMMAND);
+  input.mutable_command()->set_type(
+      commands::SessionCommand::REFRESH_LIVE_CONVERSION);
   return EvalCommand(&input, output);
 }
 
@@ -585,6 +596,49 @@ absl::Status SessionHandlerInterpreter::Eval(
   if (command == "RESET_CONTEXT") {
     MOZC_ASSERT_EQ(1, args.size());
     ResetContext();
+  } else if (command == "REFRESH_LIVE") {
+    // IMi（同時変換）：表示の作り直しを頼む（クライアントの問い合わせと同じ）
+    MOZC_ASSERT_EQ(1, args.size());
+    MOZC_ASSERT_TRUE(client_->RefreshLiveConversion(last_output_.get()));
+  } else if (command == "WAIT_LIVE") {
+    // IMi（同時変換）：計算待ちの印が消えるまで問い合わせを繰り返す。
+    // 引数は待つ上限のミリ秒（既定 2000）。打鍵の間隔を真似るときは短くする
+    MOZC_ASSERT_TRUE(args.size() <= 2);
+    int max_ms = 2000;
+    if (args.size() == 2) {
+      MOZC_ASSERT_TRUE(absl::SimpleAtoi(args[1], &max_ms));
+    }
+    for (int i = 0; i < max_ms / 5 && last_output_->live_conversion_pending(); ++i) {
+      absl::SleepFor(absl::Milliseconds(5));
+      MOZC_ASSERT_TRUE(client_->RefreshLiveConversion(last_output_.get()));
+    }
+  } else if (command == "PRINT_PREEDIT") {
+    // IMi（同時変換）：今の表示（入力中の文字列）と確定した文字列を1行で出す
+    std::string preedit;
+    for (const auto& segment : last_output_->preedit().segment()) {
+      preedit += segment.value();
+    }
+    std::cout << "PREEDIT\t" << preedit << "\t"
+              << (last_output_->live_conversion_pending() ? 1 : 0) << "\t"
+              << last_output_->result().value() << std::endl;
+  } else if (command == "PRINT_USAGES") {
+    // IMi：選んでいる候補と、意味の窓に送った項目（見出しと説明の1行目）を出す
+    const auto& cw = last_output_->candidate_window();
+    std::string focused;
+    for (const auto& c : cw.candidate()) {
+      if (cw.has_focused_index() && c.index() == static_cast<int>(cw.focused_index())) focused = c.value();
+    }
+    std::cout << "USAGES\t" << focused << "\t" << cw.usages().information_size();
+    for (const auto& info : cw.usages().information()) {
+      std::cout << "\t" << info.title() << "｜"
+                << info.description().substr(0, info.description().find('\n'));
+    }
+    std::cout << std::endl;
+  } else if (command == "SLEEP_MS") {
+    MOZC_ASSERT_EQ(2, args.size());
+    int ms = 0;
+    MOZC_ASSERT_TRUE(absl::SimpleAtoi(args[1], &ms));
+    absl::SleepFor(absl::Milliseconds(ms));
   } else if (command == "SEND_KEYS") {
     MOZC_ASSERT_EQ(2, args.size());
     const std::string& keys = args[1];

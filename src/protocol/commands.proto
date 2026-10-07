@@ -452,6 +452,14 @@ message SessionCommand {
     // Note: This command resets the internal states (history segments) of the
     // converter.
     REQUEST_NWP = 27;
+
+    // IMi（同時変換）：入力中の変換結果の表示を作り直す。
+    // Output.live_conversion_pending のあいだ、クライアントが短い間隔で送る。
+    REFRESH_LIVE_CONVERSION = 1000;
+
+    // IMi：候補を1つ進める・戻す（変換中のみ。↓・↑キーと同じ）。候補の窓のマウスのホイールで使う
+    CONVERT_NEXT_CANDIDATE = 1001;
+    CONVERT_PREV_CANDIDATE = 1002;
   }
   required CommandType type = 1;
 
@@ -1442,6 +1450,10 @@ message Output {
     optional string data_version = 2;
   }
   optional VersionInfo server_version = 26;
+
+  // IMi（同時変換）：表示している変換結果に、裏で計算中の B（小型言語
+  // モデル）の結果がまだ入っていない。クライアントは REFRESH_LIVE_CONVERSION を送る。
+  optional bool live_conversion_pending = 1000;
 }
 
 message Command {

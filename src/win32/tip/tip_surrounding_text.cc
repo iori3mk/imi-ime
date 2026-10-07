@@ -55,6 +55,8 @@ namespace tsf {
 namespace {
 
 constexpr int kMaxSurroundingLength = 20;
+// IMi：前の文脈に使うため、カーソルの前は長めに受け取る（context_rerank/context_store.h）
+constexpr int kMaxPrecedingLength = 200;
 constexpr int kMaxCharacterLength = 1024 * 1024;
 
 class SurroudingTextUpdater final : public TipComImplements<ITfEditSession> {
@@ -105,7 +107,7 @@ class SurroudingTextUpdater final : public TipComImplements<ITfEditSession> {
       if (SUCCEEDED(selected_range->Clone(&preceding_range)) &&
           SUCCEEDED(preceding_range->Collapse(edit_cookie, TF_ANCHOR_START)) &&
           SUCCEEDED(preceding_range->ShiftStart(
-              edit_cookie, -kMaxSurroundingLength, &preceding_range_shifted,
+              edit_cookie, -kMaxPrecedingLength, &preceding_range_shifted,
               &halt_cond))) {
         HRESULT result = TipRangeUtil::GetText(
             preceding_range.get(), edit_cookie, &result_.preceding_text);

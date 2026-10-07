@@ -45,6 +45,7 @@
 #include "base/util.h"
 #include "base/vlog.h"
 #include "converter/candidate.h"
+#include "context_rerank/wikt_dict.h"
 #include "converter/segments.h"
 #include "dictionary/dictionary_interface.h"
 #include "dictionary/pos_matcher.h"
@@ -52,6 +53,10 @@
 #include "request/conversion_request.h"
 
 namespace mozc {
+namespace {
+// IMi：語の意味の辞書（ウィクショナリー）の項目の番号は、内蔵の用例辞書の番号と重ならないよう、ここから振る
+constexpr int32_t kWiktUsageIdBase = 1 << 24;
+}  // namespace
 
 using ::mozc::dictionary::DictionaryInterface;
 
@@ -220,6 +225,28 @@ bool UsageRewriter::Rewrite(const ConversionRequest& request,
         comment.clear();
         modified = true;
         continue;
+      }
+
+      // IMi：次に、語の意味の辞書（ウィクショナリー）を引く。候補の内容語の表記で引き、
+      // なければ候補の表記そのもので引く。番号は内蔵の用例辞書と重ならないよう、その後ろに置く
+      {
+        const converter::Candidate& c = segment->candidate(j);
+        const context_rerank::WiktDict& wikt = context_rerank::WiktDict::Get();
+        // ひらがなだけの候補（「あった」など）は引かない（感動詞の「あっ」などに当たってしまうため）
+        if (Util::GetScriptType(c.value) == Util::HIRAGANA) continue;
+        absl::string_view key = c.content_value, title, description;
+        if (!wikt.Lookup(key, &title, &description)) {
+          key = c.value;
+          if (!wikt.Lookup(key, &title, &description)) key = {};
+        }
+        if (!key.empty()) {
+          converter::Candidate* candidate = segment->mutable_candidate(j);
+          candidate->usage_id = kWiktUsageIdBase + wikt.Find(key);
+          candidate->usage_title.assign(title.data(), title.size());
+          candidate->usage_description.assign(description.data(), description.size());
+          modified = true;
+          continue;
+        }
       }
 
       // If comment isn't in the user dictionary, search the system usage

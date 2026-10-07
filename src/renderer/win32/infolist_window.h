@@ -103,7 +103,6 @@ class InfolistWindow : public ATL::CWindowImpl<InfolistWindow, ATL::CWindow,
 
  private:
   Size DoPaint(HDC dc);
-  Size DoPaintRow(HDC dc, int row, int ypos);
 
   inline LRESULT OnDestroy(UINT msg_id, WPARAM wparam, LPARAM lparam,
                            BOOL& handled) {
@@ -147,6 +146,7 @@ class InfolistWindow : public ATL::CWindowImpl<InfolistWindow, ATL::CWindow,
   std::unique_ptr<TextRenderer> text_renderer_;
   std::unique_ptr<renderer::RendererStyle> style_;
   bool metrics_changed_;
+  uint64_t theme_generation_ = 0;  // IMi
   bool visible_;
 };
 

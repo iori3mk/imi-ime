@@ -395,3 +395,21 @@ http_archive(
     sha256 = "3adc97d8e19e1168a6cdcb2fce759d0e9e613a9a3b630cc180aecfd56ae81eaf",
     url = "https://github.com/hiroyuki-komatsu/japanpost_zipcode/raw/621d059fbcbfae17bfca15b439692bae934268c3/ken_all.zip",
 )
+
+# --- IMi：ONNX Runtime の C++ 版（MIT）。小型言語モデル（context_rerank/lm_scorer）で使う ---
+# 公式の配布物を取得する。どちらを使うかは context_rerank/BUILD.bazel の alias で選ぶ
+http_archive(
+    name = "onnxruntime_win",
+    build_file = "@//context_rerank:BUILD.onnxruntime.bazel",
+    sha256 = "c6ba983baf5681af108599675d2a89c2d145512d02de28aed0bff177cd0ba949",
+    strip_prefix = "onnxruntime-win-x64-1.30.0",
+    url = "https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-win-x64-1.30.0.zip",
+)
+
+http_archive(
+    name = "onnxruntime_linux",
+    build_file = "@//context_rerank:BUILD.onnxruntime.bazel",
+    sha256 = "a5ed5a3cac51fbb2e90da632ae43d19212faaa20e76484e62bcb7c23ddb3b3fd",
+    strip_prefix = "onnxruntime-linux-x64-1.30.0",
+    url = "https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-linux-x64-1.30.0.tgz",
+)

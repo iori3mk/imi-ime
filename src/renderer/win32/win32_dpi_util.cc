@@ -28,6 +28,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "renderer/win32/win32_dpi_util.h"
+#include "renderer/win32/imi_theme.h"
 
 #include <shellscalingapi.h>
 #include <windows.h>
@@ -70,6 +71,7 @@ void GetScaledRendererStyle(::mozc::renderer::RendererStyle* style,
   const double scale_factor = GetDPIScalingFactor(dpi);
 
   RendererStyleHandler::GetRendererStyle(style);
+  ApplyImiTheme(style);  // IMi：選んだスタイル（色・文字の大きさ）で差し替える
 
   // style->window_border is non-scalable.
   style->set_scrollbar_width(style->scrollbar_width() * scale_factor);

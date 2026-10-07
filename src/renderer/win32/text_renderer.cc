@@ -28,6 +28,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "renderer/win32/text_renderer.h"
+#include "renderer/win32/imi_theme.h"
 
 #include <atlbase.h>
 #include <atlcom.h>
@@ -80,6 +81,7 @@ COLORREF GetTextColor(TextRenderer::FONT_TYPE type, uint32_t dpi) {
     case TextRenderer::FONTSET_SHORTCUT:
       return ToColorRef(style.shortcut_style().foreground_color());
     case TextRenderer::FONTSET_CANDIDATE:
+    case TextRenderer::FONTSET_CANDIDATE_FOCUSED:
       return ToColorRef(style.candidate_style().foreground_color());
     case TextRenderer::FONTSET_DESCRIPTION:
       return ToColorRef(style.description_style().foreground_color());
@@ -94,6 +96,9 @@ COLORREF GetTextColor(TextRenderer::FONT_TYPE type, uint32_t dpi) {
       return ToColorRef(infostyle.title_style().foreground_color());
     case TextRenderer::FONTSET_INFOLIST_DESCRIPTION:
       return ToColorRef(infostyle.description_style().foreground_color());
+    case TextRenderer::FONTSET_INFOLIST_ACCENT:
+    case TextRenderer::FONTSET_SHORTCUT_ACCENT:
+      return ImiTheme::Current().accent;
     default:
       break;
   }
@@ -104,9 +109,15 @@ COLORREF GetTextColor(TextRenderer::FONT_TYPE type, uint32_t dpi) {
 
 LOGFONT GetLogFont(TextRenderer::FONT_TYPE type, uint32_t dpi) {
   LOGFONT font = GetMessageBoxLogFont(dpi);
+  // IMi：字体と大きさは選んだスタイル（imi_theme）から
+  if (const std::wstring face = ImiThemeFontFace(); !face.empty()) {
+    wcscpy_s(font.lfFaceName, face.c_str());
+  }
+  font.lfHeight = static_cast<LONG>(font.lfHeight * ImiTheme::Current().font_scale);
 
   switch (type) {
-    case TextRenderer::FONTSET_SHORTCUT: {
+    case TextRenderer::FONTSET_SHORTCUT:
+    case TextRenderer::FONTSET_SHORTCUT_ACCENT: {
       font.lfHeight += (font.lfHeight > 0 ? 3 : -3);
       font.lfWeight = FW_BOLD;
       return font;
@@ -114,6 +125,11 @@ LOGFONT GetLogFont(TextRenderer::FONT_TYPE type, uint32_t dpi) {
     case TextRenderer::FONTSET_CANDIDATE: {
       font.lfHeight += (font.lfHeight > 0 ? 3 : -3);
       font.lfWeight = FW_NORMAL;
+      return font;
+    }
+    case TextRenderer::FONTSET_CANDIDATE_FOCUSED: {
+      font.lfHeight += (font.lfHeight > 0 ? 3 : -3);
+      font.lfWeight = FW_BOLD;
       return font;
     }
     case TextRenderer::FONTSET_DESCRIPTION:
@@ -141,7 +157,8 @@ LOGFONT GetLogFont(TextRenderer::FONT_TYPE type, uint32_t dpi) {
       font.lfHeight = -infostyle.title_style().font_size();
       return font;
     }
-    case TextRenderer::FONTSET_INFOLIST_DESCRIPTION: {
+    case TextRenderer::FONTSET_INFOLIST_DESCRIPTION:
+    case TextRenderer::FONTSET_INFOLIST_ACCENT: {
       font.lfHeight = -infostyle.description_style().font_size();
       return font;
     }
@@ -156,16 +173,20 @@ LOGFONT GetLogFont(TextRenderer::FONT_TYPE type, uint32_t dpi) {
 DWORD GetGdiDrawTextStyle(TextRenderer::FONT_TYPE type) {
   switch (type) {
     case TextRenderer::FONTSET_CANDIDATE:
+    case TextRenderer::FONTSET_CANDIDATE_FOCUSED:
       return DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX;
     case TextRenderer::FONTSET_DESCRIPTION:
       return DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX;
     case TextRenderer::FONTSET_FOOTER_INDEX:
       return DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX;
+    // IMi：フッターの文字（「Tabキーで選択」など）は左揃え。中央揃えだと、候補の窓の幅が
+    // 変わるたびに位置が動いて目に障る
     case TextRenderer::FONTSET_FOOTER_LABEL:
-      return DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX;
+      return DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX;
     case TextRenderer::FONTSET_FOOTER_SUBLABEL:
-      return DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX;
+      return DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX;
     case TextRenderer::FONTSET_SHORTCUT:
+    case TextRenderer::FONTSET_SHORTCUT_ACCENT:
       return DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX;
     case TextRenderer::FONTSET_INFOLIST_CAPTION:
       return DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX;
@@ -174,6 +195,8 @@ DWORD GetGdiDrawTextStyle(TextRenderer::FONT_TYPE type) {
              DT_NOPREFIX;
     case TextRenderer::FONTSET_INFOLIST_DESCRIPTION:
       return DT_LEFT | DT_WORDBREAK | DT_EDITCONTROL | DT_NOPREFIX;
+    case TextRenderer::FONTSET_INFOLIST_ACCENT:
+      return DT_LEFT | DT_SINGLELINE | DT_NOPREFIX;
     default:
       LOG(DFATAL) << "Unknown type: " << type;
       return 0;

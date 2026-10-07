@@ -55,6 +55,15 @@ mozc_py_binary(
     ],
 )
 
+# IMi：入力モードをすべてのアプリで共通にする
+mozc_cc_library(
+    name = "imi_shared_mode",
+    srcs = ["imi_shared_mode.cc"],
+    hdrs = ["imi_shared_mode.h"],
+    tags = MOZC_TAGS.WIN_ONLY,
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
 mozc_cc_library(
     name = "mozc_tip_deps",
     tags = MOZC_TAGS.WIN_ONLY,
@@ -503,6 +512,7 @@ mozc_cc_library(
     tags = MOZC_TAGS.WIN_ONLY,
     target_compatible_with = ["@platforms//os:windows"],
     deps = [
+        ":imi_shared_mode",
         ":tip_input_mode_manager",
         "//base:system_util",
     ],
@@ -720,6 +730,7 @@ mozc_cc_library(
     tags = MOZC_TAGS.WIN_ONLY,
     target_compatible_with = ["@platforms//os:windows"],
     deps = [
+        ":imi_shared_mode",
         ":tip_composition_util",
         ":tip_dll_module",
         ":tip_input_mode_manager",

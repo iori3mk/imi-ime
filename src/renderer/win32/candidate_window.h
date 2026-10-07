@@ -79,6 +79,7 @@ class CandidateWindow : public ATL::CWindowImpl<CandidateWindow, ATL::CWindow,
   MESSAGE_HANDLER(WM_LBUTTONDOWN, OnLButtonDown)
   MESSAGE_HANDLER(WM_LBUTTONUP, OnLButtonUp)
   MESSAGE_HANDLER(WM_MOUSEMOVE, OnMouseMove)
+  MESSAGE_HANDLER(WM_MOUSEWHEEL, OnMouseWheel)
   MESSAGE_HANDLER(WM_SETTINGCHANGE, OnSettingChange)
   MESSAGE_HANDLER(WM_PAINT, OnPaint)
   MESSAGE_HANDLER(WM_PRINTCLIENT, OnPrintClient)
@@ -132,6 +133,8 @@ class CandidateWindow : public ATL::CWindowImpl<CandidateWindow, ATL::CWindow,
   // Recomputes DPI-dependent cached resources (footer logo and indicator
   // width) for the current |dpi_|.
   void UpdateDpiDependentResources();
+  void ApplyWindowFrame();  // IMi
+  uint64_t theme_generation_ = 0;  // IMi：今の色と字体を作ったときの imi_theme の世代
 
   // Handles candidate selection by mouse.
   void HandleMouseEvent(UINT nFlags, const CPoint& point,
@@ -173,6 +176,9 @@ class CandidateWindow : public ATL::CWindowImpl<CandidateWindow, ATL::CWindow,
                 CPoint(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)));
     return 0;
   }
+  // IMi：マウスのホイールで候補を1つずつ動かす
+  LRESULT OnMouseWheel(UINT msg_id, WPARAM wparam, LPARAM lparam,
+                       BOOL& handled);
   inline LRESULT OnMouseMove(UINT msg_id, WPARAM wparam, LPARAM lparam,
                              BOOL& handled) {
     OnMouseMove(static_cast<UINT>(wparam),
@@ -200,6 +206,7 @@ class CandidateWindow : public ATL::CWindowImpl<CandidateWindow, ATL::CWindow,
   wil::unique_hbitmap footer_logo_;
   Size footer_logo_display_size_;
   client::SendCommandInterface* send_command_interface_;
+  int wheel_delta_ = 0;  // IMi：ホイールの回した量のうち、まだページをめくっていない分
   std::unique_ptr<TableLayout> table_layout_;
   uint32_t dpi_;
   std::unique_ptr<TextRenderer> text_renderer_;

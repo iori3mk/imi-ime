@@ -45,6 +45,7 @@ mozc_cc_library(
     name = "rewriter_interface",
     textual_hdrs = ["rewriter_interface.h"],
     visibility = [
+        "//context_rerank:__pkg__",
         "//converter:__pkg__",
         "//engine:__pkg__",
     ],
@@ -1365,6 +1366,7 @@ mozc_cc_library(
         "//base:util",
         "//base:vlog",
         "//base/container:serialized_string_array",
+        "//context_rerank:wikt_dict",
         "//converter:segments",
         "//dictionary:dictionary_interface",
         "//dictionary:pos_matcher",
@@ -1510,6 +1512,19 @@ mozc_cc_test(
     ],
 )
 
+# IMi：記号1文字の変換では学習で第1候補を変えない
+mozc_cc_library(
+    name = "imi_symbol_rewriter",
+    srcs = ["imi_symbol_rewriter.cc"],
+    hdrs = ["imi_symbol_rewriter.h"],
+    deps = [
+        ":rewriter_interface",
+        "//config:character_form_manager",
+        "//converter:segments",
+        "//request:conversion_request",
+    ],
+)
+
 mozc_cc_library(
     name = "rewriter",
     srcs = [
@@ -1521,6 +1536,8 @@ mozc_cc_library(
         "//engine:__pkg__",
     ],
     deps = [
+        ":imi_symbol_rewriter",
+        "//context_rerank:context_rerank_rewriter",
         ":a11y_description_rewriter",
         ":calculator_rewriter",
         ":collocation_rewriter",

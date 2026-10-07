@@ -45,6 +45,8 @@
 #include <QFont>
 #include <QGuiApplication>
 #include <QObject>
+#include <QPalette>
+#include <QStyleHints>
 #include <QStyleFactory>
 #include <QtGui>
 #include <memory>
@@ -96,6 +98,38 @@ std::unique_ptr<QApplication> GuiUtil::InitQt(int &argc, char *argv[]) {
 
   // QApplication takes argc as a reference.
   auto app = std::make_unique<QApplication>(argc, argv);
+  // IMi：Windows が暗い配色のときは、暗い配色の色をそろえて決める。Qt の Fusion の既定のままだと、
+  // 表の行が紺と灰で交互になり、チェックしていない四角が青く塗られて見分けにくい
+  if (QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark) {
+    const QColor accent = app->palette().color(QPalette::Highlight);
+    QPalette pal;
+    pal.setColor(QPalette::Window, QColor(0x2b, 0x2b, 0x2b));
+    pal.setColor(QPalette::WindowText, QColor(0xe8, 0xe8, 0xe8));
+    pal.setColor(QPalette::Base, QColor(0x1f, 0x1f, 0x1f));
+    pal.setColor(QPalette::AlternateBase, QColor(0x27, 0x27, 0x27));
+    pal.setColor(QPalette::Text, QColor(0xe8, 0xe8, 0xe8));
+    pal.setColor(QPalette::PlaceholderText, QColor(0x9a, 0x9a, 0x9a));
+    pal.setColor(QPalette::Button, QColor(0x3a, 0x3a, 0x3a));
+    pal.setColor(QPalette::ButtonText, QColor(0xe8, 0xe8, 0xe8));
+    pal.setColor(QPalette::ToolTipBase, QColor(0x3a, 0x3a, 0x3a));
+    pal.setColor(QPalette::ToolTipText, QColor(0xe8, 0xe8, 0xe8));
+    pal.setColor(QPalette::Light, QColor(0x50, 0x50, 0x50));
+    pal.setColor(QPalette::Midlight, QColor(0x44, 0x44, 0x44));
+    pal.setColor(QPalette::Mid, QColor(0x33, 0x33, 0x33));
+    pal.setColor(QPalette::Dark, QColor(0x1a, 0x1a, 0x1a));
+    pal.setColor(QPalette::Shadow, QColor(0x10, 0x10, 0x10));
+    pal.setColor(QPalette::Highlight, accent);
+    pal.setColor(QPalette::HighlightedText, QColor(0xff, 0xff, 0xff));
+    pal.setColor(QPalette::Link, QColor(0x8a, 0xb4, 0xf8));
+    pal.setColor(QPalette::LinkVisited, QColor(0xc5, 0x8a, 0xf9));
+    for (const QPalette::ColorRole role :
+         {QPalette::WindowText, QPalette::Text, QPalette::ButtonText}) {
+      pal.setColor(QPalette::Disabled, role, QColor(0x80, 0x80, 0x80));
+    }
+    pal.setColor(QPalette::Disabled, QPalette::Base, QColor(0x2b, 0x2b, 0x2b));
+    pal.setColor(QPalette::Disabled, QPalette::Button, QColor(0x33, 0x33, 0x33));
+    app->setPalette(pal);
+  }
 #ifdef __APPLE__
   app->setFont(QFont("Hiragino Sans"));
 #endif  // __APPLE__
@@ -131,7 +165,7 @@ QString GuiUtil::ProductName() {
 #ifdef GOOGLE_JAPANESE_INPUT_BUILD
   const QString name = QObject::tr("Google Japanese Input");
 #else   // GOOGLE_JAPANESE_INPUT_BUILD
-  const QString name = QObject::tr("Mozc");
+  const QString name = QStringLiteral("IMi");  // IMi
 #endif  // GOOGLE_JAPANESE_INPUT_BUILD
   return name;
 }

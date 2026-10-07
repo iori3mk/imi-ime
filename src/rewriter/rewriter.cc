@@ -40,6 +40,8 @@
 #include "dictionary/single_kanji_dictionary.h"
 #include "engine/modules.h"
 #include "rewriter/a11y_description_rewriter.h"
+#include "context_rerank/context_rerank_rewriter.h"
+#include "rewriter/imi_symbol_rewriter.h"
 #include "rewriter/calculator_rewriter.h"
 #include "rewriter/collocation_rewriter.h"
 #include "rewriter/correction_rewriter.h"
@@ -165,6 +167,8 @@ Rewriter::Rewriter(const engine::Modules& modules) {
   AddRewriter(std::make_unique<DiceRewriter>());
   AddRewriter(std::make_unique<SmallLetterRewriter>());
 
+  // IMi：記号1文字の、学習の前の第1候補を覚える（最後の ImiSymbolRewriter で戻す）
+  AddRewriter(std::make_unique<ImiSymbolMarkRewriter>());
   if (absl::GetFlag(FLAGS_use_history_rewriter)) {
     AddRewriter(std::make_unique<UserBoundaryHistoryRewriter>());
     AddRewriter(
@@ -197,6 +201,10 @@ Rewriter::Rewriter(const engine::Modules& modules) {
   AddRewriter(std::make_unique<RemoveRedundantCandidateRewriter>());
   AddRewriter(make_unique_from_tuples<A11yDescriptionRewriter>(
       data_manager.GetA11yDescriptionRewriterData()));
+  // IMi：文脈による並べ替えと小型言語モデル（MOZC_CONTEXT_RERANK_DIR がなければ何もしない）
+  AddRewriter(std::make_unique<context_rerank::ContextRerankRewriter>());
+  // IMi：記号1文字の変換では、学習で第1候補を変えない（最後に置く）
+  AddRewriter(std::make_unique<ImiSymbolRewriter>());
 }
 
 }  // namespace mozc

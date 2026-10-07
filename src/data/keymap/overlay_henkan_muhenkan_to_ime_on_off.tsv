@@ -1,9 +1,12 @@
 # Overlay to use Henkan as IMEOn key, and Muhenkan as IMEOff key
-Composition	Henkan	IMEOn
-Conversion	Henkan	IMEOn
-DirectInput	Henkan	IMEOn
-Precomposition	Henkan	IMEOn
+# IMi：入力中・変換中は確定せず、無変換で半角英数の入力に、変換でひらがなの入力に
+# 切り替える（日本語と英語を混ぜて打ち、まとめて確定できるように）。何も入力していないときは
+# 無変換で IME オフ、変換で IME オン（ひらがな）
+Composition	Henkan	InputModeHiragana
+Conversion	Henkan	InputModeHiragana
+DirectInput	Henkan	InputModeHiragana
+Precomposition	Henkan	InputModeHiragana
 
-Composition	Muhenkan	IMEOff
-Conversion	Muhenkan	IMEOff
+Composition	Muhenkan	InputModeHalfAlphanumeric
+Conversion	Muhenkan	InputModeHalfAlphanumeric
 Precomposition	Muhenkan	IMEOff

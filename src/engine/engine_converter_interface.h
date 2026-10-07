@@ -255,6 +255,23 @@ class EngineConverterInterface {
   virtual void FillPreedit(const composer::Composer& composer,
                            commands::Preedit* preedit) const = 0;
 
+  // IMi（同時変換）：入力中の文字列を変換し、表示（preedit）に仮名の
+  // 代わりに出す変換結果を用意する。同時変換が無効・対象外なら空にする。
+  virtual void UpdateLivePreedit(const composer::Composer& composer,
+                                 const commands::Context& context) {}
+  // Space の変換で B が間に合わなかったとき、B が終わっていれば候補を差し替える。
+  // 利用者がまだ候補を動かしていないときだけ（CancelPendingConversion で取り消す）
+  virtual void RefreshPendingConversion(const composer::Composer& composer,
+                                        const commands::Context& context) {}
+  virtual void CancelPendingConversion() {}
+  // 同時変換の表示を出しているか
+  virtual bool HasLivePreedit() const { return false; }
+  // 同時変換の表示どおりに確定する（変換して確定。できなければ false）
+  virtual bool CommitLivePreedit(const composer::Composer& composer,
+                                 const commands::Context& context) {
+    return false;
+  }
+
   // Fill protocol buffers
   virtual void FillOutput(const composer::Composer& composer,
                           commands::Output* output) const = 0;

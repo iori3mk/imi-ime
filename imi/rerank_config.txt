@@ -1,0 +1,23 @@
+# IMi の設定（インストール先の context_rerank/rerank_config.txt。imi/build_msi_win.sh が配布物に入れる）
+lam 0.5
+lam2 3.0
+delta 2
+window 4
+margin 4000
+max_alt 5
+n_cand 8
+context_chars 60
+use_lm 1
+lm_threads 2
+# Space の変換で B を待つ上限（ミリ秒）。間に合わなければ表の結果で候補を出し、B が終わったら差し替える（候補を動かす前だけ）。0 ならその場で計算して待つ
+lm_budget_ms 80
+precision int8s
+live_conversion 1
+# 「言」と「行」の選び直しのしきい値（verb_class.tsv を使う。直前の名詞＋助詞の log((話す系+1)/(移動系+1)) がこれを超えたら入れ替える）
+verb_theta 0.5
+# 遅い PC の見分け：起動のとき決まった文で B を測り、中央値（ミリ秒）がこれを超えたら軽い設定（light_max_alt・light_window）にする。0 なら測らない。この PC（i9-10850K、スレッド2）は約 21ms
+lm_light_ms 50
+light_max_alt 4
+light_window 2
+# 小型言語モデルの計算部品（ONNX Runtime）の作業用メモリの溜め置き。0（既定）で切る：メモリ約100MB減、B は約1割遅い
+ort_arena 0

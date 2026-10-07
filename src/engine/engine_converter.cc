@@ -32,6 +32,7 @@
 #include "engine/engine_converter.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -51,6 +52,7 @@
 #include "base/vlog.h"
 #include "composer/composer.h"
 #include "config/config_handler.h"
+#include "context_rerank/live_conversion.h"
 #include "converter/attribute.h"
 #include "converter/candidate.h"
 #include "converter/converter_interface.h"
@@ -164,18 +166,27 @@ bool EngineConverter::Convert(const composer::Composer& composer,
           .SetOptions(std::move(options))
           .Build();
 
-  if (!converter_->StartConversion(conversion_request, &segments_)) {
+  context_rerank::TakeLivePending();
+  bool started;
+  {
+    context_rerank::ScopedLmBudget budget;  // IMi：B を待つ時間に上限
+    started = converter_->StartConversion(conversion_request, &segments_);
+  }
+  if (!started) {
     LOG(WARNING) << "StartConversion() failed";
     ResetState();
     return false;
   }
+  // IMi：B が間に合わなかった（表示用の変換でないとき）
+  conv_pending_ = !context_rerank::InLivePreview() && context_rerank::TakeLivePending();
 
   segment_index_ = 0;
   state_ = CONVERSION;
   // If TalkBack is enabled, the candidate list should be always visible to
   // propagate the candidate words to TalkBack. Otherwise, the candidate list
   // is not visible on the first conversion.
-  candidate_list_visible_ = request_->is_a11y_talkback_enabled();
+  candidate_list_visible_ = request_->is_a11y_talkback_enabled() ||
+                            config_->imi_show_candidates_on_convert();  // IMi
   UpdateCandidateList();
   InitializeSelectedCandidateIndices();
   return true;
@@ -492,6 +503,8 @@ bool EngineConverter::Suggest(const composer::Composer& composer,
                               const ConversionPreferences& preferences) {
   DCHECK(CheckState(COMPOSITION | SUGGESTION));
   candidate_list_visible_ = false;
+  // IMi：打鍵ごとの予測候補では B（小型言語モデル）を使わない
+  const context_rerank::ScopedSkipLm skip_lm;
 
   // Normalize the current state by resetting the previous state.
   ResetState();
@@ -612,6 +625,8 @@ bool EngineConverter::IsEmptySegment(const Segment& segment) const {
 bool EngineConverter::Predict(const composer::Composer& composer,
                               const commands::Context& context,
                               const ConversionPreferences& preferences) {
+  // IMi：予測候補では B（小型言語モデル）を使わない
+  const context_rerank::ScopedSkipLm skip_lm;
   // TODO(komatsu): DCHECK should be
   // DCHECK(CheckState(COMPOSITION | SUGGESTION | PREDICTION));
   DCHECK(CheckState(COMPOSITION | SUGGESTION | CONVERSION | PREDICTION));
@@ -865,7 +880,8 @@ void EngineConverter::CommitSegmentsInternal(const composer::Composer& composer,
   DCHECK(CheckState(PREDICTION | CONVERSION));
   DCHECK(segments_.conversion_segments_size() >= segments_to_commit);
   ResetResult();
-  candidate_list_visible_ = false;
+  candidate_list_visible_ =
+      CheckState(CONVERSION) && config_->imi_show_candidates_on_convert();  // IMi
   *consumed_key_size = 0;
 
   // If the selected candidate on the first segment covers all conversion
@@ -994,7 +1010,9 @@ bool EngineConverter::DeleteCandidateFromHistory(std::optional<int> id) {
 
 void EngineConverter::SegmentFocusInternal(size_t index) {
   DCHECK(CheckState(PREDICTION | CONVERSION));
-  candidate_list_visible_ = false;
+  // IMi：1回目の Space から一覧を出す設定なら、文節を移っても一覧を出したままにする
+  candidate_list_visible_ =
+      CheckState(CONVERSION) && config_->imi_show_candidates_on_convert();
   if (CheckState(PREDICTION)) {
     return;  // Do nothing.
   }
@@ -1050,7 +1068,8 @@ void EngineConverter::SegmentFocusLeftEdge() { SegmentFocusInternal(0); }
 void EngineConverter::ResizeSegmentWidth(const composer::Composer& composer,
                                          int delta) {
   DCHECK(CheckState(PREDICTION | CONVERSION));
-  candidate_list_visible_ = false;
+  candidate_list_visible_ =
+      CheckState(CONVERSION) && config_->imi_show_candidates_on_convert();  // IMi
   if (CheckState(PREDICTION)) {
     return;  // Do nothing.
   }
@@ -1262,6 +1281,206 @@ void EngineConverter::FillPreedit(const composer::Composer& composer,
   output::FillPreedit(composer, preedit);
 }
 
+namespace {
+// IMi（同時変換）：絵文字を含むか。Util::EMOJI は新しい絵文字（U+1F900 以降など）を含まないので範囲を広げる
+bool ContainsEmoji(absl::string_view value) {
+  for (const char32_t c : Util::Utf8ToUtf32(value)) {
+    if ((c >= 0x1F000 && c <= 0x1FAFF) || (c >= 0x2600 && c <= 0x27BF) ||
+        c == 0xFE0F || c == 0x200D) {
+      return true;
+    }
+  }
+  return false;
+}
+}  // namespace
+
+// IMi（同時変換）：入力中の文字列（ひらがな入力で、カーソルが末尾のとき）を
+// 変換して表示用の文字列を作る。B（小型言語モデル）は裏で計算し、終わっていなければ
+// live_pending_ を立てる（クライアントが REFRESH_LIVE_CONVERSION で問い合わせる）。
+void EngineConverter::UpdateLivePreedit(const composer::Composer& composer,
+                                        const commands::Context& context) {
+  live_text_.clear();
+  live_pending_ = false;
+  if (!context_rerank::LiveConversionEnabled() || !config_->imi_live_conversion() ||
+      !CheckState(COMPOSITION | SUGGESTION) || composer.Empty() ||
+      (composer.GetInputMode() != transliteration::HIRAGANA &&
+       composer.GetInputMode() != transliteration::HALF_ASCII &&
+       composer.GetInputMode() != transliteration::FULL_ASCII) ||
+      composer.GetCursor() != composer.GetLength() ||
+      composer.GetInputFieldType() == commands::Context::PASSWORD) {
+    live_front_.clear();
+    live_front_reading_.clear();
+    live_hold_since_ = 0;
+    live_last_input_.clear();
+    return;
+  }
+  // 末尾のまだ仮名になっていないローマ字（「かk」の「k」）は変換に含めず、そのまま後ろに付ける。
+  // ローマ字の1文字目で漢字の部分が変わって表示がちらつかないようにする
+  const std::u32string preedit = Util::Utf8ToUtf32(composer.GetStringForPreedit());
+  // 英数の入力（無変換で切り替えたとき）の英字はまだ仮名になる途中ではないので除かない
+  size_t pending_chars = 0;
+  for (auto it = preedit.rbegin();
+       composer.GetInputMode() == transliteration::HIRAGANA && it != preedit.rend(); ++it) {
+    const char32_t c = *it;
+    const bool latin = (c >= U'a' && c <= U'z') || (c >= U'A' && c <= U'Z') ||
+                       (c >= U'ａ' && c <= U'ｚ') || (c >= U'Ａ' && c <= U'Ｚ');
+    if (!latin) break;
+    ++pending_chars;
+  }
+  if (pending_chars == preedit.size()) {
+    return;  // 全部ローマ字なら仮名のまま出す
+  }
+  composer::Composer kana = composer;
+  for (size_t i = 0; i < pending_chars; ++i) {
+    kana.Backspace();
+  }
+
+  ConversionRequest::Options options;
+  options.request_type = ConversionRequest::CONVERSION;
+  options.enable_user_history_for_conversion =
+      conversion_preferences_.use_history;
+  const ConversionRequest conversion_request =
+      ConversionRequestBuilder()
+          .SetComposer(kana)
+          .SetRequestView(*request_)
+          .SetContextView(context)
+          .SetConfigView(*config_)
+          .SetOptions(std::move(options))
+          .Build();
+  // 確定済みの履歴だけを引き継ぐ（入力中の予測候補の結果は使わない）
+  Segments segments = segments_;
+  segments.clear_conversion_segments();
+  context_rerank::TakeLivePending();
+  {
+    context_rerank::ScopedLivePreview preview;
+    if (!converter_->StartConversion(conversion_request, &segments)) {
+      return;
+    }
+  }
+  const bool pending = context_rerank::TakeLivePending();
+  // 各文節の（読み, 表示）。表示には絵文字を出さない（絵文字は Space の変換で選ぶ）
+  std::vector<std::pair<std::string, std::string>> segs;
+  std::string reading;
+  for (const Segment& segment : segments.conversion_segments()) {
+    if (segment.candidates_size() == 0) {
+      return;
+    }
+    std::string value = segment.candidate(0).value;
+    for (size_t c = 0; c < segment.candidates_size(); ++c) {
+      if (!ContainsEmoji(segment.candidate(c).value)) {
+        value = segment.candidate(c).value;
+        break;
+      }
+    }
+    reading += segment.key();
+    segs.emplace_back(std::string(segment.key()), std::move(value));
+  }
+  const size_t reading_len = Util::CharsLen(reading);
+
+  // 表示の安定化：1文字打っただけで、前回の表示の前半（最後の文節より前）の文字が別の区切りで
+  // 書き換わるとき（「関係あると|なぜ」→「関係アルトな|税」）は、前半は前の表示のまま残して残りを
+  // 仮名で出す。その状態が kLiveHoldChars 文字続いたら書き換える。
+  // ・区切りが同じ文節の漢字の変化（B の「公開→後悔」など）はすぐ出す
+  // ・区切りが変わっても表示が前の続きになっている（「行いに|つい」→「行いについて」）ならそのまま出す
+  constexpr size_t kLiveHoldChars = 2;
+  std::string text;
+  const bool extends_front = reading.starts_with(live_front_reading_);
+  bool same_front = extends_front;
+  size_t j = 0;  // 区切り（読み）が最初に食い違う前半の文節
+  if (extends_front && !live_front_.empty()) {
+    while (j < live_front_.size() && j < segs.size() &&
+           segs[j].first == live_front_[j].first) {
+      ++j;
+    }
+    if (j < live_front_.size()) {
+      std::string old_rest, new_rest;
+      for (size_t i = j; i < live_front_.size(); ++i) old_rest += live_front_[i].second;
+      for (size_t i = j; i < segs.size(); ++i) new_rest += segs[i].second;
+      same_front = new_rest.starts_with(old_rest);
+    }
+  }
+  const bool stabilize = context_rerank::LiveStabilizeEnabled();
+  if (!stabilize || !extends_front || same_front || live_front_.empty()) {
+    live_hold_since_ = 0;
+  } else if (live_hold_since_ == 0) {
+    live_hold_since_ = reading_len;
+  }
+  // 打鍵が止まって kLiveHoldReleaseMs（既定 200ms）経ったら据え置きを解く（手を止めたら確定される文字を見せる）。
+  // 据え置いているあいだは live_pending_ を立て、クライアントに問い合わせを続けてもらう
+  const auto kLiveHoldReleaseMs =
+      std::chrono::milliseconds(context_rerank::LiveHoldReleaseMs());
+  const auto now = std::chrono::steady_clock::now();
+  const std::string input = composer.GetStringForPreedit();
+  if (input != live_last_input_) {
+    live_last_input_ = input;
+    live_last_change_ = now;
+  }
+  const bool holding = live_hold_since_ > 0 &&
+                       reading_len < live_hold_since_ + kLiveHoldChars &&
+                       now - live_last_change_ < kLiveHoldReleaseMs;
+  if (holding) {
+    // 前半はそのまま（漢字は新しい変換の同じ文節があればそちらでもよいが、区切りが違うので前のもの）
+    for (const auto& [key, value] : live_front_) text += value;
+    text += reading.substr(live_front_reading_.size());
+  } else {
+    live_hold_since_ = 0;
+    // B の結果がまだのあいだは、区切りが同じ前半の文節は前回の表示（B の判断済み）を引き継ぐ。
+    // 打鍵のたびに「T0+K5 の候補 → B の候補」と行き来してちらつかないようにする
+    if (stabilize && pending && extends_front) {
+      for (size_t i = 0; i < j && i < segs.size(); ++i) segs[i].second = live_front_[i].second;
+    }
+    for (const auto& [key, value] : segs) text += value;
+    // 最後の文節は打鍵で変わりやすいので、それより前を次の比較の基準にする
+    live_front_.assign(segs.begin(), segs.end() - 1);
+    live_front_reading_.clear();
+    for (const auto& [key, value] : live_front_) live_front_reading_ += key;
+  }
+  text += Util::Utf32ToUtf8(preedit.substr(preedit.size() - pending_chars));
+  live_text_ = std::move(text);
+  live_pending_ = pending || holding;
+}
+
+// IMi：Space の変換で B が間に合わなかったとき、B が終わっていれば変換し直して候補を差し替える。
+// 利用者が何か操作すれば（Session が CancelPendingConversion を呼ぶ）差し替えない
+void EngineConverter::RefreshPendingConversion(const composer::Composer& composer,
+                                               const commands::Context& context) {
+  if (!conv_pending_ || !CheckState(CONVERSION)) {
+    conv_pending_ = false;
+    return;
+  }
+  const bool visible = candidate_list_visible_;
+  Convert(composer, context, conversion_preferences_);  // conv_pending_ もここで決め直す
+  candidate_list_visible_ = visible;
+}
+
+// IMi（同時変換）：表示と同じになるよう、B は計算済みのものだけを使い（表示用の変換と
+// 同じ扱い）、絵文字は第1候補にしないで変換し、そのまま確定する
+bool EngineConverter::CommitLivePreedit(const composer::Composer& composer,
+                                        const commands::Context& context) {
+  bool converted = false;
+  {
+    context_rerank::ScopedLivePreview preview;
+    converted = Convert(composer, context, conversion_preferences_);
+  }
+  context_rerank::TakeLivePending();
+  conv_pending_ = false;
+  if (!converted) {
+    return false;
+  }
+  for (Segment& segment : segments_.conversion_segments()) {
+    for (size_t c = 0; c < segment.candidates_size(); ++c) {
+      if (!ContainsEmoji(segment.candidate(c).value)) {
+        if (c > 0) {
+          segment.move_candidate(static_cast<int>(c), 0);
+        }
+        break;
+      }
+    }
+  }
+  Commit(composer, context);
+  return true;
+}
+
 void EngineConverter::FillOutput(const composer::Composer& composer,
                                  commands::Output* output) const {
   if (!output) {
@@ -1271,10 +1490,27 @@ void EngineConverter::FillOutput(const composer::Composer& composer,
   if (result_.has_value()) {
     FillResult(output->mutable_result());
   }
+  // IMi（同時変換）：入力中は仮名の代わりに変換結果を出す
+  const auto fill_preedit = [&](commands::Preedit* preedit) {
+    if (live_text_.empty()) {
+      output::FillPreedit(composer, preedit);
+      return;
+    }
+    output::AddSegment(composer.GetQueryForConversion(), live_text_,
+                       output::PREEDIT, preedit);
+    preedit->set_cursor(static_cast<uint32_t>(Util::CharsLen(live_text_)));
+    if (live_pending_) {
+      output->set_live_conversion_pending(true);
+    }
+  };
   if (CheckState(COMPOSITION)) {
     if (!composer.Empty()) {
-      output::FillPreedit(composer, output->mutable_preedit());
+      fill_preedit(output->mutable_preedit());
     }
+  }
+  // IMi：Space の変換の B を待っているあいだは、クライアントに問い合わせを続けてもらう
+  if (conv_pending_ && CheckState(CONVERSION)) {
+    output->set_live_conversion_pending(true);
   }
 
   MaybeFillConfig(updated_command_, *config_, output);
@@ -1288,7 +1524,7 @@ void EngineConverter::FillOutput(const composer::Composer& composer,
     // When the suggestion comes from zero query suggestion, the
     // composer is empty.  In that case, preedit is not rendered.
     if (!composer.Empty()) {
-      output::FillPreedit(composer, output->mutable_preedit());
+      fill_preedit(output->mutable_preedit());
     }
   } else if (CheckState(PREDICTION | CONVERSION)) {
     // Conversion on Prediction or Conversion
@@ -1851,10 +2087,12 @@ void EngineConverter::OnStartComposition(const commands::Context& context) {
   }
 
   absl::string_view preceding_text = context.preceding_text();
-  // If preceding text is empty, it is OK to reset the history segments by
-  // calling ResetConversion.
+  // IMi：空のときは消さない。ターミナルなど、入力中の文字しか見せないアプリはいつも空を返すため
+  // （キーがそのままアプリに渡ったときは Session::EchoBack で消える）
   if (preceding_text.empty()) {
-    converter_->ResetConversion(&segments_);
+    if (revision_changed) {
+      converter_->ResetConversion(&segments_);
+    }
     return;
   }
 

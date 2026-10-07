@@ -214,7 +214,9 @@ int main(int argc, char** argv) {
   mozc::InitMozc(argv[0], &argc, &argv);
   if (!absl::GetFlag(FLAGS_profile).empty()) {
     const std::string profile = absl::GetFlag(FLAGS_profile);
-    if (!mozc::FileUtil::CreateDirectory(profile).ok()) {
+    // IMi：既存の利用者データ（の写し）でも試せるよう、あれば作らない
+    if (!mozc::FileUtil::DirectoryExists(profile).ok() &&
+        !mozc::FileUtil::CreateDirectory(profile).ok()) {
       std::cout << "ERROR: Failed to create profile directory: " << profile
                 << std::endl;
       return 1;

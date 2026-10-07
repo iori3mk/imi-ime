@@ -47,6 +47,13 @@ load(
 
 package(default_visibility = ["//visibility:private"])
 
+# IMi：候補の窓と意味の窓の配色（候補の窓と設定画面で共有）
+mozc_cc_library(
+    name = "imi_palette",
+    hdrs = ["imi_palette.h"],
+    visibility = ["//visibility:public"],
+)
+
 mozc_cc_library(
     name = "renderer_client",
     srcs = ["renderer_client.cc"],

@@ -197,6 +197,7 @@ mozc_cc_qt_library(
         ":uic_keybinding_editor",
     ],
     deps = [
+        "//renderer:imi_palette",
         ":combobox_delegate",
         "//base:config_file_stream",
         "//base:file_stream",
@@ -233,6 +234,7 @@ mozc_cc_qt_library(
         ],
         windows = [
             "//gui/base:win_util",
+            "//win32/base:imm_util",
         ],
     ),
 )

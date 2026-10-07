@@ -809,6 +809,7 @@ mozc_cc_binary(
         "//engine:eval_engine_data",
     ],
     deps = [
+        "//context_rerank:context_store",
         ":attribute",
         ":converter_interface",
         ":pos_id_printer",

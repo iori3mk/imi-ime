@@ -29,8 +29,25 @@
 
 // Qt component of configure dialog for Mozc
 #include "gui/config_dialog/config_dialog.h"
+#include "renderer/imi_palette.h"
 
+#include <QCheckBox>
+#include <QFontMetricsF>
+#include <QPainter>
+#include <QSettings>
+#include <QComboBox>
+#include <QFontDatabase>
+#include <QFrame>
+#include <QGridLayout>
+#include <QListWidget>
+#include <QScrollArea>
+#include <QStackedWidget>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QMessageBox>
+#include <QPalette>
+#include <QPushButton>
+#include <QVBoxLayout>
 #include <algorithm>
 #include <cstdint>
 #include <istream>
@@ -38,6 +55,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -64,6 +82,7 @@
 
 #include "base/run_level.h"
 #include "gui/base/win_util.h"
+#include "win32/base/imm_util.h"
 #endif  // _WIN32
 
 #ifdef __APPLE__
@@ -94,6 +113,33 @@ QFrame[class="setting-group-header"] {
 }
 QFrame[class="setting-group-line"] {
 }
+QListWidget#imiNav {
+  background: transparent;
+  border: none;
+  border-right: 1px solid palette(mid);
+  padding: 10px 8px;
+  outline: 0;
+}
+QListWidget#imiNav::item {
+  padding: 8px 10px;
+  margin: 1px 0;
+  border-radius: 6px;
+}
+QListWidget#imiNav::item:selected {
+  background: palette(midlight);
+  color: palette(window-text);
+}
+QListWidget#imiNav::item:hover:!selected {
+  background: palette(alternate-base);
+}
+QFrame#imiCard {
+  background: palette(alternate-base);
+  border: 1px solid palette(mid);
+  border-radius: 8px;
+}
+QScrollArea, QScrollArea > QWidget > QWidget {
+  background: transparent;
+}
 )";
 
 ConfigDialog::ConfigDialog()
@@ -103,6 +149,7 @@ ConfigDialog::ConfigDialog()
       initial_use_mode_indicator_(true) {
   setupUi(this);
   setStyleSheet(QString::fromUtf8(kQss.data(), kQss.size()));
+  SetupImiTab();
 
   // Remove the context help button (question mark button) from the window.
   Qt::WindowFlags flags = windowFlags();
@@ -133,7 +180,7 @@ ConfigDialog::ConfigDialog()
 
 #if defined(__linux__)
   // The last "misc" tab has no valid configs on Linux
-  constexpr int kMiscTabIndex = 6;
+  constexpr int kMiscTabIndex = 7;  // IMi：先頭に IMi のページを足したので 6 から 7 に
   configDialogTabWidget->removeTab(kMiscTabIndex);
 #endif  // __linux__
 #endif  // NDEBUG
@@ -502,6 +549,26 @@ void GetComboboxForPreeditMethod(const QComboBox* combobox,
 // The difference only SET_ and GET_. We would like to unify the twos.
 void ConfigDialog::ConvertFromProto(const config::Config& config) {
   base_config_ = config;
+  // IMi のページ
+  imiHenkanMuhenkanCheckBox_->setChecked(
+      std::find(config.overlay_keymaps().begin(), config.overlay_keymaps().end(),
+                config::Config::OVERLAY_HENKAN_MUHENKAN_TO_IME_ON_OFF) !=
+      config.overlay_keymaps().end());
+  imiLiveConversionCheckBox_->setChecked(config.imi_live_conversion());
+  imiUseLmCheckBox_->setChecked(config.imi_use_lm());
+  imiUseContextCheckBox_->setChecked(config.imi_use_context());
+  imiShowCandidatesCheckBox_->setChecked(config.imi_show_candidates_on_convert());
+  imiStyleComboBox_->setCurrentIndex(static_cast<int>(config.imi_window_style()));
+  imiColorModeComboBox_->setCurrentIndex(static_cast<int>(config.imi_color_mode()));
+  {
+    const int font = config.imi_candidate_font().empty()
+                         ? 0
+                         : imiFontComboBox_->findText(QString::fromStdString(config.imi_candidate_font()));
+    imiFontComboBox_->setCurrentIndex(font < 0 ? 0 : font);
+  }
+  imiFontSizeComboBox_->setCurrentIndex(static_cast<int>(config.imi_font_size()));
+  imiShareInputModeCheckBox_->setChecked(config.imi_share_input_mode());
+  UpdateImiPreview();
   // tab1
   SetComboboxForPreeditMethod(config, inputModeComboBox);
   SET_COMBOBOX(punctuationsSettingComboBox, PunctuationMethod,
@@ -585,6 +652,41 @@ void ConfigDialog::ConvertFromProto(const config::Config& config) {
 
 void ConfigDialog::ConvertToProto(config::Config* config) const {
   *config = base_config_;
+  // IMi のページ
+  {
+    std::vector<int> overlays;
+    for (int k : config->overlay_keymaps()) {
+      if (k != config::Config::OVERLAY_HENKAN_MUHENKAN_TO_IME_ON_OFF) {
+        overlays.push_back(k);
+      }
+    }
+    if (imiHenkanMuhenkanCheckBox_->isChecked()) {
+      overlays.push_back(config::Config::OVERLAY_HENKAN_MUHENKAN_TO_IME_ON_OFF);
+    }
+    config->clear_overlay_keymaps();
+    for (int k : overlays) {
+      config->add_overlay_keymaps(static_cast<config::Config::SessionKeymap>(k));
+    }
+  }
+  config->set_imi_live_conversion(imiLiveConversionCheckBox_->isChecked());
+  config->set_imi_use_lm(imiUseLmCheckBox_->isChecked());
+  config->set_imi_use_context(imiUseContextCheckBox_->isChecked());
+  config->set_imi_show_candidates_on_convert(imiShowCandidatesCheckBox_->isChecked());
+  config->set_imi_window_style(
+      static_cast<config::Config::ImiWindowStyle>(imiStyleComboBox_->currentIndex()));
+  config->set_imi_color_mode(
+      static_cast<config::Config::ImiColorMode>(imiColorModeComboBox_->currentIndex()));
+  config->set_imi_candidate_font(imiFontComboBox_->currentIndex() > 0
+                                     ? imiFontComboBox_->currentText().toStdString()
+                                     : std::string());
+  config->set_imi_font_size(
+      static_cast<config::Config::ImiFontSize>(imiFontSizeComboBox_->currentIndex()));
+  config->set_imi_share_input_mode(imiShareInputModeCheckBox_->isChecked());
+#ifdef _WIN32
+  // IME の部品（TIP）は設定ファイルを読まないので、レジストリにも書く（tip_thread_context.cc）
+  QSettings(QStringLiteral("HKEY_CURRENT_USER\\Software\\IMi"), QSettings::NativeFormat)
+      .setValue(QStringLiteral("ShareInputMode"), imiShareInputModeCheckBox_->isChecked() ? 1 : 0);
+#endif  // _WIN32
 
   // tab1
   GetComboboxForPreeditMethod(inputModeComboBox, config);
@@ -685,7 +787,13 @@ void ConfigDialog::clicked(QAbstractButton* button) {
       }
       break;
     case QDialogButtonBox::ApplyRole:
-      Update();
+      // IMi：適用できたら「適用」を灰色に戻し、反映したことがわかるようにする
+      // 「適用」ボタン自身も「押されたら適用を有効にする」につながっているので、その処理のあとに灰色にする
+      if (Update()) {
+        QTimer::singleShot(0, this, [this]() {
+          configDialogButtonBox->button(QDialogButtonBox::Apply)->setEnabled(false);
+        });
+      }
       break;
     case QDialogButtonBox::RejectRole:
       QWidget::close();
@@ -798,6 +906,444 @@ void ConfigDialog::LaunchAdministrationDialog() {
   client_->LaunchTool("administration_dialog", "");
 #endif  // _WIN32
 }
+
+namespace {
+
+// IMi：見た目のページの見本。候補の窓と意味の窓を、選んでいるスタイル・配色・字体・大きさで小さく描く
+class ImiPreviewWidget : public QWidget {
+ public:
+  explicit ImiPreviewWidget(QWidget* parent = nullptr) : QWidget(parent) {
+    setMinimumHeight(158);
+  }
+  void Set(int style, bool dark, const QStringList& families, double scale) {
+    style_ = style;
+    dark_ = dark;
+    families_ = families;
+    scale_ = scale;
+    update();
+  }
+
+ protected:
+  void paintEvent(QPaintEvent*) override {
+    const renderer::ImiPalette p = renderer::GetImiPalette(style_, dark_);
+    const auto c = [](uint32_t v) { return QColor((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF); };
+    QPainter g(this);
+    g.setRenderHint(QPainter::Antialiasing);
+    QFont base = font();
+    base.setFamilies(families_);
+    const auto sized = [&](double px, bool bold = false) {
+      QFont f = base;
+      f.setPixelSize(static_cast<int>(px * scale_));
+      f.setBold(bold);
+      return f;
+    };
+    QFont sans = font();
+    const auto sans_sized = [&](double px) {
+      QFont f = sans;
+      f.setPixelSize(static_cast<int>(px * scale_));
+      return f;
+    };
+    const int row_h = static_cast<int>(30 * scale_);
+    const int pad = 6;
+    // 候補の窓
+    const QStringList cands = {QString::fromUtf8("言って"), QString::fromUtf8("行って"),
+                               QString::fromUtf8("いって")};
+    const int cw = static_cast<int>(150 * scale_);
+    const int ch = pad * 2 + row_h * cands.size() + static_cast<int>(22 * scale_);
+    const QRectF cand(4, 4, cw, ch);
+    g.setPen(QPen(c(p.border), 1));
+    g.setBrush(c(p.window_bg));
+    g.drawRoundedRect(cand, 8, 8);
+    for (int i = 0; i < cands.size(); ++i) {
+      const QRectF row(cand.left() + pad, cand.top() + pad + i * row_h, cw - pad * 2, row_h);
+      if (i == 0) {
+        g.setPen(Qt::NoPen);
+        g.setBrush(c(p.focus_bg));
+        g.drawRoundedRect(row.adjusted(0, 1, 0, -1), 5, 5);
+      }
+      g.setFont(sans_sized(12));
+      g.setPen(i == 0 ? c(p.accent) : c(p.sub_text));
+      g.drawText(QRectF(row.left(), row.top(), 22 * scale_, row.height()), Qt::AlignCenter,
+                 QString::number(i + 1));
+      g.setFont(sized(16, i == 0));
+      g.setPen(c(p.text));
+      g.drawText(row.adjusted(26 * scale_, 0, 0, 0), Qt::AlignVCenter | Qt::AlignLeft, cands[i]);
+    }
+    const double fy = cand.top() + pad + row_h * cands.size();
+    g.setPen(QPen(c(p.separator), 1));
+    g.drawLine(QPointF(cand.left() + pad, fy + 2), QPointF(cand.right() - pad, fy + 2));
+    g.setFont(sans_sized(10));
+    g.setPen(c(p.sub_text));
+    g.drawText(QRectF(cand.left() + pad, fy + 3, cw - pad * 2, 20 * scale_),
+               Qt::AlignVCenter | Qt::AlignRight, QStringLiteral("1 / 9"));
+    // 意味の窓
+    const double mx = cand.right() + 6;
+    const double mw = std::max(120.0, width() - mx - 4);
+    const QRectF mean(mx, 4, mw, std::max<double>(ch, 140 * scale_));
+    g.setPen(QPen(c(p.border), 1));
+    g.setBrush(c(p.window_bg));
+    g.drawRoundedRect(mean, 8, 8);
+    double y = mean.top() + 10;
+    g.setFont(sized(19));
+    g.setPen(c(p.text));
+    const QString word = QString::fromUtf8("言う");
+    const double word_w = QFontMetricsF(g.font()).horizontalAdvance(word);
+    const double word_h = QFontMetricsF(g.font()).height();
+    g.drawText(QPointF(mean.left() + 14, y + QFontMetricsF(g.font()).ascent()), word);
+    g.setFont(sans_sized(11));
+    g.setPen(c(p.sub_text));
+    g.drawText(QPointF(mean.left() + 14 + word_w + 8, y + word_h - 6), QString::fromUtf8("いう・動詞"));
+    y += word_h + 6;
+    g.setPen(QPen(c(p.separator), 1));
+    g.drawLine(QPointF(mean.left() + 14, y), QPointF(mean.right() - 14, y));
+    y += 8;
+    const QStringList senses = {QString::fromUtf8("言葉に出す。"),
+                                QString::fromUtf8("表現する。伝達する。主張する。")};
+    g.setFont(sized(12));
+    const double line_h = QFontMetricsF(g.font()).height() + 3;
+    for (int i = 0; i < senses.size(); ++i) {
+      g.setPen(c(p.accent));
+      g.drawText(QPointF(mean.left() + 14, y + QFontMetricsF(g.font()).ascent()), QString::number(i + 1));
+      g.setPen(c(p.text));
+      g.drawText(QRectF(mean.left() + 30, y, mean.width() - 44, line_h),
+                 Qt::AlignLeft | Qt::AlignTop | Qt::TextSingleLine,
+                 QFontMetricsF(g.font()).elidedText(senses[i], Qt::ElideRight, mean.width() - 44));
+      y += line_h;
+    }
+    g.setFont(sans_sized(10));
+    g.setPen(c(p.sub_text));
+    g.drawText(QPointF(mean.left() + 14, y + 6 + QFontMetricsF(g.font()).ascent()),
+               QString::fromUtf8("ウィクショナリー日本語版より"));
+  }
+
+ private:
+  int style_ = 0;
+  bool dark_ = false;
+  QStringList families_;
+  double scale_ = 1.0;
+};
+
+// Windows のアプリの配色が暗いか
+bool WindowsAppsDark() {
+#ifdef _WIN32
+  QSettings s(QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"),
+              QSettings::NativeFormat);
+  return s.value(QStringLiteral("AppsUseLightTheme"), 1).toInt() == 0;
+#else
+  return false;
+#endif
+}
+
+}  // namespace
+
+// IMi：設定画面の作り直し（2026-10-07）。タブをやめて、左に項目の一覧、右にページを置く。
+// .ui で作った部品（設定とのつなぎは ConvertFromProto・ConvertToProto のまま）を新しいページへ移し、
+// 元のタブは隠す。移さない部品（使用統計など）は隠したタブに残り、値はそのまま保たれる。
+void ConfigDialog::SetupImiTab() {
+  QWidget* host = new QWidget(this);
+  QHBoxLayout* host_layout = new QHBoxLayout(host);
+  host_layout->setContentsMargins(0, 0, 0, 0);
+  host_layout->setSpacing(0);
+  QListWidget* nav = new QListWidget(host);
+  nav->setObjectName(QStringLiteral("imiNav"));
+  nav->setFixedWidth(176);
+  nav->setFrameShape(QFrame::NoFrame);
+  QStackedWidget* stack = new QStackedWidget(host);
+  host_layout->addWidget(nav);
+  host_layout->addWidget(stack, 1);
+  if (QLayout* parent_layout = configDialogTabWidget->parentWidget()->layout()) {
+    parent_layout->replaceWidget(configDialogTabWidget, host);
+  }
+  configDialogTabWidget->hide();
+  QObject::connect(nav, &QListWidget::currentRowChanged, stack, &QStackedWidget::setCurrentIndex);
+  // 選択だけが変わったとき（支援技術などからの選択）もページを切り替える
+  QObject::connect(nav, &QListWidget::itemSelectionChanged, stack, [nav, stack]() {
+    const QList<QListWidgetItem*> sel = nav->selectedItems();
+    if (!sel.isEmpty()) stack->setCurrentIndex(nav->row(sel.first()));
+  });
+
+  const auto dim = [](QLabel* label) {
+    QPalette pal = label->palette();
+    QColor c = pal.color(QPalette::WindowText);
+    c.setAlpha(165);
+    pal.setColor(QPalette::WindowText, c);
+    label->setPalette(pal);
+  };
+  // ページ：題名と、カードを縦に並べる場所
+  const auto add_page = [&](const char* name) {
+    nav->addItem(QString::fromUtf8(name));
+    QScrollArea* area = new QScrollArea(stack);
+    area->setWidgetResizable(true);
+    area->setFrameShape(QFrame::NoFrame);
+    QWidget* content = new QWidget(area);
+    QVBoxLayout* v = new QVBoxLayout(content);
+    v->setContentsMargins(20, 14, 20, 14);
+    v->setSpacing(12);
+    QLabel* title = new QLabel(QString::fromUtf8(name), content);
+    QFont f = title->font();
+    f.setPointSizeF(f.pointSizeF() * 1.45);
+    f.setBold(true);
+    title->setFont(f);
+    v->addWidget(title);
+    area->setWidget(content);
+    stack->addWidget(area);
+    return v;
+  };
+  // カード：設定の行をまとめる枠
+  const auto add_card = [&](QVBoxLayout* page, const char* heading = nullptr) {
+    if (heading != nullptr) {
+      QLabel* h = new QLabel(QString::fromUtf8(heading));
+      dim(h);
+      page->addWidget(h);
+    }
+    QFrame* card = new QFrame();
+    card->setObjectName(QStringLiteral("imiCard"));
+    QVBoxLayout* v = new QVBoxLayout(card);
+    v->setContentsMargins(16, 10, 16, 10);
+    v->setSpacing(10);
+    page->addWidget(card);
+    return v;
+  };
+  // 行：左に名前と説明、右に部品
+  const auto add_row = [&](QVBoxLayout* card, const char* name, const char* note, QWidget* w) {
+    QHBoxLayout* row = new QHBoxLayout();
+    QVBoxLayout* text = new QVBoxLayout();
+    text->setSpacing(2);
+    QLabel* n = new QLabel(QString::fromUtf8(name));
+    n->setWordWrap(true);
+    text->addWidget(n);
+    if (note != nullptr) {
+      QLabel* d = new QLabel(QString::fromUtf8(note));
+      d->setWordWrap(true);
+      dim(d);
+      text->addWidget(d);
+    }
+    if (w != nullptr) n->setBuddy(w);
+    row->addLayout(text, 1);
+    if (w != nullptr) {
+      w->setMinimumWidth(std::max(w->minimumWidth(), 190));
+      row->addWidget(w, 0, Qt::AlignVCenter);
+    }
+    card->addLayout(row);
+  };
+  // チェックボックスの行：チェックボックスの文字を名前にし、説明を下に
+  const auto add_check = [&](QVBoxLayout* card, QCheckBox* box, const char* name, const char* note) {
+    box->setText(QString::fromUtf8(name));
+    QVBoxLayout* v = new QVBoxLayout();
+    v->setSpacing(2);
+    v->addWidget(box);
+    if (note != nullptr) {
+      QLabel* d = new QLabel(QString::fromUtf8(note));
+      d->setWordWrap(true);
+      d->setContentsMargins(26, 0, 0, 0);
+      dim(d);
+      v->addWidget(d);
+    }
+    card->addLayout(v);
+  };
+
+  imiHenkanMuhenkanCheckBox_ = new QCheckBox(this);
+  imiLiveConversionCheckBox_ = new QCheckBox(this);
+  imiUseLmCheckBox_ = new QCheckBox(this);
+  imiUseContextCheckBox_ = new QCheckBox(this);
+  imiShowCandidatesCheckBox_ = new QCheckBox(this);
+  imiShareInputModeCheckBox_ = new QCheckBox(this);
+
+  // 基本
+  {
+    QVBoxLayout* page = add_page("基本");
+    QVBoxLayout* c1 = add_card(page);
+    add_check(c1, imiLiveConversionCheckBox_, "打つそばから変換する（同時変換）",
+              "オフにすると、Space キーを押すまで仮名のまま表示します。");
+    add_check(c1, imiUseLmCheckBox_, "前後の文脈で漢字を選び直す",
+              "小さな言語モデルで文全体の自然さを比べます。オフにすると軽くなりますが、精度は少し下がります。");
+    add_check(c1, imiUseContextCheckBox_, "前に確定した文も手がかりにする",
+              "直前に書いた文の内容から、続く語の漢字を選びます。");
+    add_check(c1, imiShowCandidatesCheckBox_, "候補の横に語の意味を出す",
+              "1回目の Space キーから候補の一覧を出し、選んでいる語の意味を表示します。");
+    QVBoxLayout* c2 = add_card(page);
+    add_check(c2, imiHenkanMuhenkanCheckBox_, "無変換キーで英数、変換キーでひらがな",
+              "入力していないときの無変換キーは IME をオフにします。");
+    add_row(c2, "句読点", nullptr, punctuationsSettingComboBox);
+    add_row(c2, "記号", nullptr, symbolsSettingComboBox);
+    QVBoxLayout* c3 = add_card(page);
+    QPushButton* set_default = new QPushButton(QString::fromUtf8("既定にする"));
+    QObject::connect(set_default, SIGNAL(clicked()), this, SLOT(SetImiDefault()));
+    add_row(c3, "IMi をいつも使う入力方式にする",
+            "新しく開いた窓や、PC を起動したときに IMi で始まるようにします。", set_default);
+    page->addStretch();
+  }
+  // 入力のしかた
+  {
+    QVBoxLayout* page = add_page("入力のしかた");
+    QVBoxLayout* c1 = add_card(page);
+    add_row(c1, "ローマ字入力・かな入力", nullptr, inputModeComboBox);
+    add_row(c1, "スペースの入力", nullptr, spaceCharacterFormComboBox);
+    add_row(c1, "テンキーからの入力", nullptr, numpadCharacterFormComboBox);
+#ifdef __APPLE__
+    add_row(c1, "¥ キー・バックスラッシュ キーからの入力", nullptr, yenSignComboBox);
+#endif  // __APPLE__
+    add_row(c1, "Shift キーでの切り替え", nullptr, shiftKeyModeSwitchComboBox);
+    QVBoxLayout* c2 = add_card(page);
+    add_check(c2, imiShareInputModeCheckBox_, "入力モード（あ・A）をすべてのアプリで共通にする",
+              "オフにすると、アプリごとに最後の入力モードを覚えます。変えたあと、アプリを開き直すと反映されます。");
+    add_check(c2, autoSwitchCompositionMode, "英数字が続いたら自動で半角英数にする", nullptr);
+    add_check(c2, useJapaneseLayout, "日本語の入力ではいつも日本語のキー配列を使う", nullptr);
+    add_check(c2, useAutoConversion, "句読点を打ったら変換する", "変換のきっかけにする記号を選べます。");
+    QHBoxLayout* marks = new QHBoxLayout();
+    marks->setContentsMargins(26, 0, 0, 0);
+    for (QCheckBox* b : {kutenCheckBox, toutenCheckBox, questionMarkCheckBox, exclamationMarkCheckBox}) {
+      marks->addWidget(b);
+    }
+    marks->addStretch();
+    c2->addLayout(marks);
+    QVBoxLayout* c3 = add_card(page);
+    QWidget* keymap = new QWidget();
+    QHBoxLayout* km = new QHBoxLayout(keymap);
+    km->setContentsMargins(0, 0, 0, 0);
+    km->addWidget(keymapSettingComboBox);
+    km->addWidget(editKeymapButton);
+    add_row(c3, "キーの割り当て", nullptr, keymap);
+    add_row(c3, "ローマ字の表", nullptr, editRomanTableButton);
+    page->addStretch();
+  }
+  // 変換と候補
+  {
+    QVBoxLayout* page = add_page("変換と候補");
+    QVBoxLayout* c1 = add_card(page);
+    add_row(c1, "候補を数字キーで選ぶ", nullptr, selectionShortcutModeComboBox);
+    QVBoxLayout* c2 = add_card(page, "予測候補（打っている途中に出る候補）");
+    add_check(c2, historySuggestCheckBox, "入力の履歴から出す", nullptr);
+    add_check(c2, dictionarySuggestCheckBox, "辞書から出す", nullptr);
+    add_check(c2, realtimeConversionCheckBox, "予測候補に変換結果も出す", nullptr);
+    add_row(c2, "予測候補の数", nullptr, suggestionsSizeSpinBox);
+    QVBoxLayout* c3 = add_card(page, "特別な変換");
+    QGridLayout* grid = new QGridLayout();
+    const std::pair<QCheckBox*, const char*> specials[] = {
+        {singleKanjiConversionCheckBox, "漢字1文字"}, {emojiConversionCheckBox, "絵文字"},
+        {symbolConversionCheckBox, "記号"}, {dateConversionCheckBox, "日付・時刻"},
+        {emoticonConversionCheckBox, "顔文字"}, {numberConversionCheckBox, "数字の書き方"},
+        {t13nConversionCheckBox, "カタカナ語を英語に"}, {calculatorCheckBox, "計算（1+2= など）"},
+        {zipcodeConversionCheckBox, "郵便番号から住所"}, {spellingCorrectionCheckBox, "打ち間違いの候補"}};
+    for (int k = 0; k < static_cast<int>(std::size(specials)); ++k) {
+      specials[k].first->setText(QString::fromUtf8(specials[k].second));
+      grid->addWidget(specials[k].first, k / 2, k % 2);
+    }
+    c3->addLayout(grid);
+    page->addStretch();
+  }
+  // 見た目
+  {
+    QVBoxLayout* page = add_page("見た目");
+    QVBoxLayout* c1 = add_card(page);
+    imiStyleComboBox_ = new QComboBox();
+    imiStyleComboBox_->addItems({QString::fromUtf8("和紙と墨"), QString::fromUtf8("すっきり"),
+                                 QString::fromUtf8("夜")});
+    add_row(c1, "スタイル", "候補の窓と意味の窓の見た目です。", imiStyleComboBox_);
+    imiColorModeComboBox_ = new QComboBox();
+    imiColorModeComboBox_->addItems({QString::fromUtf8("Windows に合わせる"),
+                                     QString::fromUtf8("明るい"), QString::fromUtf8("暗い")});
+    add_row(c1, "配色",
+            "「Windows に合わせる」なら、Windows の明るい・暗いの設定に従います。スタイルが「夜」のときはいつも暗くなります。",
+            imiColorModeComboBox_);
+    imiFontComboBox_ = new QComboBox();
+    imiFontComboBox_->addItem(QString::fromUtf8("スタイルの既定"));
+    imiFontComboBox_->addItems(QFontDatabase::families(QFontDatabase::Japanese));
+    imiFontComboBox_->setMaxVisibleItems(16);
+    add_row(c1, "候補の字体", "この PC に入っている日本語のフォントから選べます。", imiFontComboBox_);
+    imiFontSizeComboBox_ = new QComboBox();
+    imiFontSizeComboBox_->addItems({QString::fromUtf8("ふつう"), QString::fromUtf8("小さい"),
+                                    QString::fromUtf8("大きい")});
+    add_row(c1, "文字の大きさ", nullptr, imiFontSizeComboBox_);
+    QVBoxLayout* c2 = add_card(page, "見本");
+    imiPreview_ = new ImiPreviewWidget();
+    c2->addWidget(imiPreview_);
+    QVBoxLayout* c3 = add_card(page);
+    add_check(c3, useModeIndicator, "カーソルの近くに入力モード（あ・A）を出す", nullptr);
+    for (QComboBox* c : {imiStyleComboBox_, imiColorModeComboBox_, imiFontComboBox_, imiFontSizeComboBox_}) {
+      QObject::connect(c, SIGNAL(currentIndexChanged(int)), this, SLOT(UpdateImiPreview()));
+    }
+    page->addStretch();
+  }
+  // 辞書と学習
+  {
+    QVBoxLayout* page = add_page("辞書と学習");
+    QVBoxLayout* c1 = add_card(page);
+    add_row(c1, "よく使う変換を覚える", "選んだ候補を覚えて、次から先に出します。", historyLearningLevelComboBox);
+    clearUserHistoryButton->setText(QString::fromUtf8("覚えた内容を消す"));
+    add_row(c1, "覚えた内容を消す", nullptr, clearUserHistoryButton);
+    QVBoxLayout* c2 = add_card(page);
+    editUserDictionaryButton->setText(QString::fromUtf8("辞書ツールを開く"));
+    add_row(c2, "自分用の単語を登録する", "人名や専門用語など、辞書にない語を登録できます。",
+            editUserDictionaryButton);
+    localUsageDictionaryCheckBox->hide();
+    page->addStretch();
+  }
+  // プライバシー
+  {
+    QVBoxLayout* page = add_page("プライバシー");
+    QVBoxLayout* c1 = add_card(page);
+    add_check(c1, incognitoModeCheckBox, "シークレットモード",
+              "しばらくのあいだ、変換を覚える・履歴から予測する・自分用の単語を使う、をやめます。");
+    add_check(c1, presentationModeCheckBox, "プレゼンテーションモード",
+              "しばらくのあいだ、予測候補を出しません。");
+    QLabel* note = new QLabel(QString::fromUtf8(
+        "IMi は入力した文字をインターネットに送りません。変換はすべてこの PC の中で行います。"));
+    note->setWordWrap(true);
+    dim(note);
+    page->addWidget(note);
+    page->addStretch();
+  }
+  // 詳しい設定
+  {
+    QVBoxLayout* page = add_page("詳しい設定");
+    QVBoxLayout* c1 = add_card(page, "半角・全角");
+    c1->addWidget(characterFormEditor);
+    characterFormEditor->setMinimumHeight(260);
+    QVBoxLayout* c2 = add_card(page);
+    add_check(c2, checkDefaultCheckBox, "起動のとき、IMi が既定の入力方式かを確かめる", nullptr);
+    add_check(c2, IMEHotKeyDisabledCheckBox, "Ctrl+Shift での入力方式の切り替えを使わない", nullptr);
+    launchAdministrationDialogButton->setText(QString::fromUtf8("設定を開く"));
+    add_row(c2, "辞書の先読みと管理者の設定", "管理者の許可（UAC）が要ります。",
+            launchAdministrationDialogButton);
+    page->addStretch();
+  }
+  nav->setCurrentRow(0);
+  resize(std::max(width(), 760), std::max(height(), 600));
+}
+
+void ConfigDialog::SetImiDefault() {
+#ifdef _WIN32
+  const bool ok = win32::ImeUtil::SetDefault();
+  QMessageBox::information(
+      this, windowTitle(),
+      QString::fromUtf8(ok ? "IMi を既定の入力方式にしました。"
+                           : "既定にできませんでした。Windows の設定の「時刻と言語」→「入力」→"
+                             "「キーボードの詳細設定」から選んでください。"));
+#endif  // _WIN32
+}
+
+void ConfigDialog::UpdateImiPreview() {
+  if (imiPreview_ == nullptr) return;
+  const int style = imiStyleComboBox_->currentIndex();
+  const int color = imiColorModeComboBox_->currentIndex();
+  const bool dark = color == 2 || (color == 0 && WindowsAppsDark());
+  const renderer::ImiPalette p = renderer::GetImiPalette(style, dark);
+  QStringList families;
+  if (imiFontComboBox_->currentIndex() > 0) families << imiFontComboBox_->currentText();
+  if (p.serif) {
+    families << QStringLiteral("Noto Serif JP") << QStringLiteral("Yu Mincho");
+  } else {
+    families << QStringLiteral("BIZ UDPGothic") << QStringLiteral("Noto Sans JP")
+             << QStringLiteral("Yu Gothic UI");
+  }
+  const double scale = imiFontSizeComboBox_->currentIndex() == 1   ? 0.88
+                       : imiFontSizeComboBox_->currentIndex() == 2 ? 1.15
+                                                                    : 1.0;
+  static_cast<ImiPreviewWidget*>(imiPreview_)->Set(style, dark, families, scale);
+}
+
+void ConfigDialog::OpenDictionaryTool() { EditUserDictionary(); }
 
 void ConfigDialog::EnableApplyButton() {
   configDialogButtonBox->button(QDialogButtonBox::Apply)->setEnabled(true);

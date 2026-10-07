@@ -34,9 +34,13 @@
 #include <atlwin.h>
 #include <wil/resource.h>
 #include <windows.h>
+#include <dwmapi.h>
 
+#include <algorithm>
 #include <cstdint>
+#include <cwctype>
 #include <string>
+#include <vector>
 
 #include "base/coordinates.h"
 #include "base/vlog.h"
@@ -46,8 +50,11 @@
 #include "protocol/commands.pb.h"
 #include "protocol/renderer_command.pb.h"
 #include "protocol/renderer_style.pb.h"
+#include "renderer/win32/imi_theme.h"
 #include "renderer/win32/text_renderer.h"
 #include "renderer/win32/win32_dpi_util.h"
+
+#pragma comment(lib, "dwmapi.lib")
 
 namespace mozc {
 namespace renderer {
@@ -143,152 +150,160 @@ void InfolistWindow::OnPaint(HDC dc) {
 
 void InfolistWindow::OnPrintClient(HDC dc, UINT uFlags) { OnPaint(dc); }
 
-Size InfolistWindow::DoPaint(HDC dc) {
-  if (dc != nullptr) {
-    ::SetBkMode(dc, TRANSPARENT);
+// IMi：意味の窓。選んでいる候補の項目1つだけを、辞書らしい形で描く
+//   1行目：見出しの語（大きく）、読み・品詞（小さく）
+//   区切りの線
+//   意味：「1. …」は番号を差し色で、「  ・…」は字下げ、「［動詞］」「表記：…」は小さく
+//   ウィクショナリーの項目なら、最後に出典
+namespace {
+
+// 「言う（いう）［動詞］」→（言う, いう, 動詞）。読みや品詞がなければ空
+void SplitTitle(const std::wstring& t, std::wstring* word, std::wstring* reading,
+                std::wstring* pos) {
+  const size_t r0 = t.find(L'（'), p0 = t.find(L'［');
+  const size_t end = std::min(r0, p0);
+  *word = t.substr(0, end == std::wstring::npos ? t.size() : end);
+  reading->clear();
+  pos->clear();
+  if (r0 != std::wstring::npos) {
+    const size_t r1 = t.find(L'）', r0);
+    if (r1 != std::wstring::npos) *reading = t.substr(r0 + 1, r1 - r0 - 1);
   }
-  const RendererStyle::InfolistStyle& infostyle = style_->infolist_style();
-  const InformationList& usages = candidate_window_->usages();
-
-  int ypos = infostyle.window_border();
-
-  if ((dc != nullptr) && infostyle.has_caption_string()) {
-    const RendererStyle::TextStyle& caption_style = infostyle.caption_style();
-    const int caption_height = infostyle.caption_height();
-    const Rect backgrounnd_rect(
-        infostyle.window_border(), ypos,
-        infostyle.window_width() - infostyle.window_border() * 2,
-        caption_height);
-    const CRect background_crect(
-        backgrounnd_rect.Left(), backgrounnd_rect.Top(),
-        backgrounnd_rect.Right(), backgrounnd_rect.Bottom());
-
-    FillSolidRect(dc, &background_crect,
-                  RGB(infostyle.caption_background_color().r(),
-                      infostyle.caption_background_color().g(),
-                      infostyle.caption_background_color().b()));
-
-    const Rect caption_rect(
-        infostyle.window_border() + infostyle.caption_padding() +
-            caption_style.left_padding(),
-        ypos + infostyle.caption_padding(),
-        infostyle.window_width() - infostyle.window_border() * 2,
-        caption_height);
-    const std::wstring caption_str =
-        mozc::win32::Utf8ToWide(infostyle.caption_string());
-
-    text_renderer_->RenderText(dc, caption_str, caption_rect,
-                               TextRenderer::FONTSET_INFOLIST_CAPTION);
+  if (p0 != std::wstring::npos) {
+    const size_t p1 = t.find(L'］', p0);
+    if (p1 != std::wstring::npos) *pos = t.substr(p0 + 1, p1 - p0 - 1);
   }
-  ypos += infostyle.caption_height();
-
-  for (int i = 0; i < usages.information_size(); ++i) {
-    Size size = DoPaintRow(dc, i, ypos);
-    ypos += size.height;
-  }
-  ypos += infostyle.window_border();
-
-  if (dc != nullptr) {
-    const CRect rect(0, 0, infostyle.window_width(), ypos);
-    ::SetDCBrushColor(
-        dc, RGB(infostyle.border_color().r(), infostyle.border_color().g(),
-                infostyle.border_color().b()));
-    ::FrameRect(dc, &rect, static_cast<HBRUSH>(::GetStockObject(DC_BRUSH)));
-  }
-
-  return Size(style_->infolist_style().window_width(), ypos);
 }
 
-Size InfolistWindow::DoPaintRow(HDC dc, int row, int ypos) {
+std::vector<std::wstring> SplitLines(const std::wstring& s) {
+  std::vector<std::wstring> out;
+  size_t b = 0;
+  while (b <= s.size()) {
+    const size_t e = s.find(L'\n', b);
+    out.push_back(s.substr(b, e == std::wstring::npos ? std::wstring::npos : e - b));
+    if (e == std::wstring::npos) break;
+    b = e + 1;
+  }
+  return out;
+}
+
+// ウィクショナリーの項目の番号（usage_rewriter.cc の kWiktUsageIdBase）
+constexpr int32_t kWiktUsageIdBase = 1 << 24;
+
+}  // namespace
+
+Size InfolistWindow::DoPaint(HDC dc) {
   const RendererStyle::InfolistStyle& infostyle = style_->infolist_style();
   const InformationList& usages = candidate_window_->usages();
-  const RendererStyle::TextStyle& title_style = infostyle.title_style();
-  const RendererStyle::TextStyle& desc_style = infostyle.description_style();
-  const int title_width =
-      infostyle.window_width() - title_style.left_padding() -
-      title_style.right_padding() - infostyle.window_border() * 2 -
-      infostyle.row_rect_padding() * 2;
-  const int desc_width = infostyle.window_width() - desc_style.left_padding() -
-                         desc_style.right_padding() -
-                         infostyle.window_border() * 2 -
-                         infostyle.row_rect_padding() * 2;
-  const Information& info = usages.information(row);
-
-  const std::wstring title_str = mozc::win32::Utf8ToWide(info.title());
-  const Size title_size = text_renderer_->MeasureStringMultiLine(
-      TextRenderer::FONTSET_INFOLIST_TITLE, title_str, title_width);
-
-  const std::wstring desc_str = mozc::win32::Utf8ToWide(info.description());
-  const Size desc_size = text_renderer_->MeasureStringMultiLine(
-      TextRenderer::FONTSET_INFOLIST_DESCRIPTION, desc_str, desc_width);
-
-  int row_height =
-      title_size.height + desc_size.height + infostyle.row_rect_padding() * 2;
-
-  if (dc == nullptr) {
-    return Size(0, row_height);
+  const int width = infostyle.window_width();
+  const double scale = GetDPIScalingFactor(dpi_);
+  const int pad_x = static_cast<int>(16 * scale), pad_y = static_cast<int>(14 * scale);
+  const int inner = width - pad_x * 2;
+  const ImiTheme& theme = ImiTheme::Current();
+  if (dc != nullptr) {
+    ::SetBkMode(dc, TRANSPARENT);
+    const CRect all(0, 0, width, 4096);
+    FillSolidRect(dc, &all, theme.window_bg);
   }
-  const Rect title_rect(
-      infostyle.window_border() + infostyle.row_rect_padding() +
-          title_style.left_padding(),
-      ypos + infostyle.row_rect_padding(), title_width, title_size.height);
-  const Rect desc_rect(
-      infostyle.window_border() + infostyle.row_rect_padding() +
-          desc_style.left_padding(),
-      ypos + infostyle.row_rect_padding() + title_rect.size.height, desc_width,
-      desc_size.height);
+  if (usages.information_size() == 0) {
+    return Size(width, pad_y * 2);
+  }
+  const int index = usages.has_focused_index() ? usages.focused_index() : 0;
+  const Information& info = usages.information(index < usages.information_size() ? index : 0);
 
-  const CRect title_back_crect(
-      infostyle.window_border(), ypos,
-      infostyle.window_width() - infostyle.window_border(),
-      ypos + title_rect.size.height + infostyle.row_rect_padding());
-
-  const CRect desc_back_crect(
-      infostyle.window_border(),
-      ypos + title_rect.size.height + infostyle.row_rect_padding(),
-      infostyle.window_width() - infostyle.window_border(),
-      ypos + title_rect.size.height + infostyle.row_rect_padding() +
-          desc_rect.size.height + infostyle.row_rect_padding());
-
-  if (usages.has_focused_index() && (row == usages.focused_index())) {
-    const CRect selected_rect(
-        infostyle.window_border(), ypos,
-        infostyle.window_width() - infostyle.window_border(),
-        ypos + title_rect.size.height + desc_rect.size.height +
-            infostyle.row_rect_padding() * 2);
-    FillSolidRect(dc, &selected_rect,
-                  RGB(infostyle.focused_background_color().r(),
-                      infostyle.focused_background_color().g(),
-                      infostyle.focused_background_color().b()));
-    ::SetDCBrushColor(dc, RGB(infostyle.focused_border_color().r(),
-                              infostyle.focused_border_color().g(),
-                              infostyle.focused_border_color().b()));
-    ::FrameRect(dc, &selected_rect,
-                static_cast<HBRUSH>(::GetStockObject(DC_BRUSH)));
-  } else {
-    if (title_style.has_background_color()) {
-      FillSolidRect(dc, &title_back_crect,
-                    RGB(title_style.background_color().r(),
-                        title_style.background_color().g(),
-                        title_style.background_color().b()));
-    } else {
-      FillSolidRect(dc, &title_back_crect, RGB(255, 255, 255));
-    }
-    if (desc_style.has_background_color()) {
-      FillSolidRect(dc, &desc_back_crect,
-                    RGB(title_style.background_color().r(),
-                        title_style.background_color().g(),
-                        title_style.background_color().b()));
-    } else {
-      FillSolidRect(dc, &desc_back_crect, RGB(255, 255, 255));
+  int y = pad_y;
+  // 1行目：見出しの語と、読み・品詞
+  std::wstring word, reading, pos;
+  SplitTitle(mozc::win32::Utf8ToWide(info.title()), &word, &reading, &pos);
+  std::wstring sub = reading;
+  if (!pos.empty()) sub += (sub.empty() ? L"" : L"・") + pos;
+  const Size word_size = text_renderer_->MeasureString(TextRenderer::FONTSET_INFOLIST_TITLE, word);
+  const Size sub_size = sub.empty() ? Size(0, 0)
+                                    : text_renderer_->MeasureString(
+                                          TextRenderer::FONTSET_INFOLIST_CAPTION, sub);
+  if (dc != nullptr) {
+    text_renderer_->RenderText(dc, word, Rect(pad_x, y, word_size.width, word_size.height),
+                               TextRenderer::FONTSET_INFOLIST_TITLE);
+    if (!sub.empty()) {
+      const int sx = pad_x + word_size.width + static_cast<int>(8 * scale);
+      text_renderer_->RenderText(
+          dc, sub,
+          Rect(sx, y + word_size.height - sub_size.height - static_cast<int>(2 * scale),
+               std::max(0, width - pad_x - sx), sub_size.height),
+          TextRenderer::FONTSET_INFOLIST_CAPTION);
     }
   }
+  y += word_size.height + static_cast<int>(8 * scale);
+  // 区切りの線
+  if (dc != nullptr) {
+    const CRect line(pad_x, y, width - pad_x, y + std::max(1, static_cast<int>(scale)));
+    FillSolidRect(dc, &line, theme.separator);
+  }
+  y += static_cast<int>(8 * scale);
 
-  text_renderer_->RenderText(dc, title_str, title_rect,
-                             TextRenderer::FONTSET_INFOLIST_TITLE);
-  text_renderer_->RenderText(dc, desc_str, desc_rect,
-                             TextRenderer::FONTSET_INFOLIST_DESCRIPTION);
-  return Size(0, row_height);
+  // 意味
+  const int num_w = text_renderer_->MeasureString(TextRenderer::FONTSET_INFOLIST_ACCENT, L"8").width +
+                    static_cast<int>(8 * scale);
+  const int gap = static_cast<int>(3 * scale);
+  for (std::wstring line : SplitLines(mozc::win32::Utf8ToWide(info.description()))) {
+    if (line.empty()) continue;
+    // 「1. 言葉に出す。」：番号と本文
+    size_t dot = line.find(L". ");
+    bool numbered = dot != std::wstring::npos && dot > 0 && dot <= 2;
+    for (size_t k = 0; numbered && k < dot; ++k) numbered = iswdigit(line[k]);
+    if (numbered) {
+      const std::wstring num = line.substr(0, dot), body = line.substr(dot + 2);
+      const Size bs = text_renderer_->MeasureStringMultiLine(
+          TextRenderer::FONTSET_INFOLIST_DESCRIPTION, body, inner - num_w);
+      if (dc != nullptr) {
+        text_renderer_->RenderText(dc, num, Rect(pad_x, y, num_w, bs.height),
+                                   TextRenderer::FONTSET_INFOLIST_ACCENT);
+        text_renderer_->RenderText(dc, body, Rect(pad_x + num_w, y, inner - num_w, bs.height),
+                                   TextRenderer::FONTSET_INFOLIST_DESCRIPTION);
+      }
+      y += bs.height + gap;
+      continue;
+    }
+    // 「  ・…」：字下げした細目
+    if (line.rfind(L"  ・", 0) == 0) {
+      const std::wstring body = line.substr(2);
+      const Size bs = text_renderer_->MeasureStringMultiLine(
+          TextRenderer::FONTSET_INFOLIST_DESCRIPTION, body, inner - num_w);
+      if (dc != nullptr) {
+        text_renderer_->RenderText(dc, body, Rect(pad_x + num_w, y, inner - num_w, bs.height),
+                                   TextRenderer::FONTSET_INFOLIST_DESCRIPTION);
+      }
+      y += bs.height + gap;
+      continue;
+    }
+    // 「［動詞］」「表記：…」などは小さく
+    const bool is_small = line.rfind(L"［", 0) == 0 || line.rfind(L"表記：", 0) == 0;
+    const auto font = is_small ? TextRenderer::FONTSET_INFOLIST_CAPTION
+                            : TextRenderer::FONTSET_INFOLIST_DESCRIPTION;
+    const Size ls = text_renderer_->MeasureStringMultiLine(font, line, inner);
+    if (dc != nullptr) {
+      text_renderer_->RenderText(dc, line, Rect(pad_x, y, inner, ls.height), font);
+    }
+    y += ls.height + gap;
+  }
+  // 出典
+  if (info.id() >= kWiktUsageIdBase) {
+    y += static_cast<int>(6 * scale);
+    const std::wstring src = L"ウィクショナリー日本語版より";
+    const Size ss = text_renderer_->MeasureString(TextRenderer::FONTSET_INFOLIST_CAPTION, src);
+    if (dc != nullptr) {
+      text_renderer_->RenderText(dc, src, Rect(pad_x, y, inner, ss.height),
+                                 TextRenderer::FONTSET_INFOLIST_CAPTION);
+    }
+    y += ss.height;
+  }
+  y += pad_y;
+  if (dc != nullptr) {
+    const CRect frame(0, 0, width, y);
+    ::SetDCBrushColor(dc, theme.border);
+    ::FrameRect(dc, &frame, static_cast<HBRUSH>(::GetStockObject(DC_BRUSH)));
+  }
+  return Size(width, y);
 }
 
 void InfolistWindow::OnSettingChange(UINT uFlags, LPCTSTR /*lpszSection*/) {
@@ -345,6 +360,20 @@ void InfolistWindow::DelayHide(UINT mseconds) {
 void InfolistWindow::UpdateLayout(
     const commands::CandidateWindow& candidate_window) {
   *candidate_window_ = candidate_window;
+
+  // IMi：スタイルの設定や Windows の配色が変わっていれば、色と字体を作り直す
+  ImiTheme::Refresh();
+  if (theme_generation_ != ImiTheme::generation()) {
+    theme_generation_ = ImiTheme::generation();
+    GetScaledRendererStyle(style_.get(), dpi_);
+    metrics_changed_ = true;
+    if (m_hWnd != nullptr) {
+      const DWM_WINDOW_CORNER_PREFERENCE corner = DWMWCP_ROUND;
+      ::DwmSetWindowAttribute(m_hWnd, DWMWA_WINDOW_CORNER_PREFERENCE, &corner, sizeof(corner));
+      const COLORREF border = ImiTheme::Current().border;
+      ::DwmSetWindowAttribute(m_hWnd, DWMWA_BORDER_COLOR, &border, sizeof(border));
+    }
+  }
 
   // If we detect any change of font parameters, update text renderer
   if (metrics_changed_) {

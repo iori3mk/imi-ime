@@ -44,6 +44,11 @@ namespace tsf {
 class TipPrivateContext;
 class TipThreadContext;
 
+// IMi（同時変換）：B の結果を表示に反映するための問い合わせのタイマー
+// （renderer_callback_window_handle() のウィンドウに掛ける）
+inline constexpr UINT_PTR kLiveConversionRefreshTimerId = 0x4C495645;  // 'LIVE'
+inline constexpr UINT kLiveConversionRefreshIntervalMs = 30;
+
 class TipTextService : public IUnknown {
  public:
   // Retrieves the ID of the client application.

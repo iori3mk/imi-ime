@@ -1420,6 +1420,12 @@ class TipTextServiceImpl
         self->OnRendererCallback(wparam, lparam);
         return 0;
       }
+      // IMi（同時変換）：B の結果が出ていれば表示を差し替える
+      if (message == WM_TIMER && wparam == kLiveConversionRefreshTimerId) {
+        ::KillTimer(window_handle, kLiveConversionRefreshTimerId);
+        self->OnLiveConversionRefresh();
+        return 0;
+      }
     }
     return ::DefWindowProcW(window_handle, message, wparam, lparam);
   }
@@ -1441,6 +1447,19 @@ class TipTextServiceImpl
     }
     TipEditSession::OnRendererCallbackAsync(this, context.get(), wparam,
                                             lparam);
+  }
+
+  // IMi（同時変換）
+  void OnLiveConversionRefresh() {
+    wil::com_ptr_nothrow<ITfDocumentMgr> document_manager;
+    if (FAILED(thread_mgr_->GetFocus(&document_manager)) || !document_manager) {
+      return;
+    }
+    wil::com_ptr_nothrow<ITfContext> context;
+    if (FAILED(document_manager->GetBase(&context)) || !context) {
+      return;
+    }
+    TipEditSession::RefreshLiveConversionAsync(this, context.get());
   }
 
   // Represents the status of the thread manager which owns this IME object.

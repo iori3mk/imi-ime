@@ -69,6 +69,9 @@ class TextRenderer {
     FONTSET_INFOLIST_CAPTION,
     FONTSET_INFOLIST_TITLE,
     FONTSET_INFOLIST_DESCRIPTION,
+    FONTSET_INFOLIST_ACCENT,  // IMi：意味の番号（説明と同じ大きさ、差し色）
+    FONTSET_SHORTCUT_ACCENT,  // IMi：選んでいる候補の番号（番号と同じ字体、差し色）
+    FONTSET_CANDIDATE_FOCUSED,  // IMi：選んでいる候補（候補と同じ字体の太字）
     SIZE_OF_FONT_TYPE,  // DO NOT DELETE THIS
   };
 

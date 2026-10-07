@@ -57,8 +57,8 @@
     http://msdn.microsoft.com/en-us/library/aa367850.aspx.
     So we change the product ID for every new version.
   -->
-  <Package Name="Mozc" Language="1041" Codepage="932" Version="$(var.MozcVersion)" Manufacturer="Google LLC" UpgradeCode="$(var.UpgradeCode)" InstallerVersion="500">
-    <SummaryInformation Keywords="Installer" Description="Mozc インストーラー" Manufacturer="Google LLC" Codepage="932" />
+  <Package Name="IMi" Language="1041" Codepage="932" Version="$(var.MozcVersion)" Manufacturer="IMi" UpgradeCode="$(var.UpgradeCode)" InstallerVersion="500">
+    <SummaryInformation Keywords="Installer" Description="IMi インストーラー" Manufacturer="IMi" Codepage="932" />
 
     <!--
        While obtaining the OS build number from the registry does not seem to be officially
@@ -139,7 +139,7 @@
       <Error Id="4000" Message="新しいバージョンの Mozc が既にインストールされています。" />
     </UI>
 
-    <Feature Id="MozcInstall" Title="Mozc" Level="1">
+    <Feature Id="MozcInstall" Title="IMi" Level="1">
       <ComponentRef Id="MozcTIP32" />
       <ComponentRef Id="MozcTIP64" />
       <?if $(var.MozcTIP64ArmPath) != "" and $(var.MozcTIP64XPath) != "" ?>
@@ -148,6 +148,21 @@
       <?endif?>
       <ComponentRef Id="MozcBroker" />
       <ComponentRef Id="MozcConverter" />
+      <?ifdef ContextRerankDir ?>
+        <ComponentRef Id="ContextRerankOrt" />
+        <ComponentRef Id="ContextRerank0" />
+        <ComponentRef Id="ContextRerank1" />
+        <ComponentRef Id="ContextRerank2" />
+        <ComponentRef Id="ContextRerank3" />
+        <ComponentRef Id="ContextRerank4" />
+        <ComponentRef Id="ContextRerank5" />
+        <ComponentRef Id="ContextRerank6" />
+        <ComponentRef Id="ContextRerank7" />
+        <ComponentRef Id="ContextRerank8" />
+        <ComponentRef Id="ContextRerank9" />
+        <ComponentRef Id="ContextRerank10" />
+        <ComponentRef Id="ContextRerank11" />
+      <?endif?>
       <ComponentRef Id="MozcCacheService" />
       <ComponentRef Id="MozcRenderer" />
       <ComponentRef Id="MozcTool" />
@@ -245,6 +260,53 @@
         <Component Id="MozcConverter">
           <File Id="mozc_server.exe" Name="mozc_server.exe" DiskId="1" Checksum="yes" Source="$(var.MozcServer64Path)" Vital="yes" />
         </Component>
+        <!-- IMi：文脈による並べ替えと小型言語モデル -->
+        <?ifdef ContextRerankDir ?>
+          <Component Id="ContextRerankOrt">
+            <File Id="onnxruntime.dll" Name="onnxruntime.dll" DiskId="1" Source="$(var.ContextRerankDir)/onnxruntime.dll" />
+          </Component>
+          <Directory Id="ContextRerankDir" Name="context_rerank">
+            <Component Id="ContextRerank0">
+              <File Id="cr_0" Name="tables.bin" DiskId="1" Source="$(var.ContextRerankDir)/context_rerank/tables.bin" />
+            </Component>
+            <Component Id="ContextRerank1">
+              <File Id="cr_1" Name="basep_int8s.onnx" DiskId="1" Source="$(var.ContextRerankDir)/context_rerank/basep_int8s.onnx" />
+            </Component>
+            <Component Id="ContextRerank2">
+              <File Id="cr_2" Name="alt_int8s.onnx" DiskId="1" Source="$(var.ContextRerankDir)/context_rerank/alt_int8s.onnx" />
+            </Component>
+            <Component Id="ContextRerank3">
+              <File Id="cr_3" Name="pieces.tsv" DiskId="1" Source="$(var.ContextRerankDir)/context_rerank/pieces.tsv" />
+            </Component>
+            <Component Id="ContextRerank4">
+              <File Id="cr_4" Name="norm.tsv" DiskId="1" Source="$(var.ContextRerankDir)/context_rerank/norm.tsv" />
+            </Component>
+            <Component Id="ContextRerank5">
+              <File Id="cr_5" Name="config.json" DiskId="1" Source="$(var.ContextRerankDir)/context_rerank/config.json" />
+            </Component>
+            <Component Id="ContextRerank6">
+              <File Id="cr_6" Name="bos_kv.f32" DiskId="1" Source="$(var.ContextRerankDir)/context_rerank/bos_kv.f32" />
+            </Component>
+            <Component Id="ContextRerank7">
+              <File Id="cr_7" Name="bos_lp.f32" DiskId="1" Source="$(var.ContextRerankDir)/context_rerank/bos_lp.f32" />
+            </Component>
+            <Component Id="ContextRerank8">
+              <File Id="cr_8" Name="rerank_config.txt" DiskId="1" Source="$(var.ContextRerankDir)/context_rerank/rerank_config.txt" />
+            </Component>
+            <!-- IMi：小型言語モデルの重み（basep・alt で共有） -->
+            <Component Id="ContextRerank9">
+              <File Id="cr_9" Name="lm_shared.bin" DiskId="1" Source="$(var.ContextRerankDir)/context_rerank/lm_shared.bin" />
+            </Component>
+            <!-- IMi：語の意味の辞書（ウィクショナリー日本語版から作成。CC BY-SA） -->
+            <Component Id="ContextRerank10">
+              <File Id="cr_10" Name="wikt_dict.bin" DiskId="1" Source="$(var.ContextRerankDir)/context_rerank/wikt_dict.bin" />
+            </Component>
+            <!-- IMi：「言」と「行」の選び直しの表（Wikipedia 日本語版の本文から数えた名詞＋助詞＋動詞の種類の数。CC BY-SA） -->
+            <Component Id="ContextRerank11">
+              <File Id="cr_11" Name="verb_class.tsv" DiskId="1" Source="$(var.ContextRerankDir)/context_rerank/verb_class.tsv" />
+            </Component>
+          </Directory>
+        <?endif?>
         <Component Id="MozcCacheService">
           <File Id="mozc_cache_service.exe" Name="mozc_cache_service.exe" DiskId="1" Checksum="yes" Source="$(var.MozcCacheService64Path)" Vital="yes" KeyPath="yes" />
           <!--

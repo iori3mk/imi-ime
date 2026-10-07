@@ -252,10 +252,9 @@ STDMETHODIMP TipLangBarButton::OnClick(TfLBIClick click, POINT point,
     return lang_bar_callback_->OnItemClick(item_info_.szDescription);
   }
 
-  // If context menu is disabled, do nothing.
-  if (!context_menu_enabled_) {
-    return S_OK;
-  }
+  // IMi：IME が使えない場所（テキストボックスの外）でも、プロパティ・辞書ツール・単語登録は選べるように
+  // メニューを出す。入力モードの項目だけを灰色にする（元の Mozc はメニューごと出さなかった）
+  const bool tools_only = !context_menu_enabled_;
 
   wil::unique_hmenu menu(::CreatePopupMenu());
   for (size_t i = 0; i < menu_data_size(); ++i) {
@@ -276,6 +275,15 @@ STDMETHODIMP TipLangBarButton::OnClick(TfLBIClick click, POINT point,
       info.fMask |= MIIM_STRING;
       info.dwTypeData = data->text_;
 
+      const bool input_mode_item =
+          data->item_id_ >= TipLangBarCallback::kDirect &&
+          data->item_id_ <= TipLangBarCallback::kHalfKatakana;
+      if (tools_only && input_mode_item) {
+        info.fMask |= MIIM_STATE;
+        info.fState |= MFS_GRAYED;
+        ::InsertMenuItem(menu.get(), i, TRUE, &info);
+        continue;
+      }
       switch (data->flags_) {
         case TF_LBMENUF_RADIOCHECKED:
           info.fMask |= MIIM_STATE;
@@ -321,6 +329,8 @@ STDMETHODIMP TipLangBarButton::OnClick(TfLBIClick click, POINT point,
     }
   }
 
+  // IMi：メニューを出す前にマウスの形を矢印に戻す（タスクバーの上では「↔」のままになることがあった）
+  ::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
   const BOOL result = ::TrackPopupMenu(menu.get(), kMenuFlags, point.x, point.y,
                                        0, ::GetFocus(), nullptr);
   if (!result) {
@@ -668,7 +678,9 @@ STDMETHODIMP TipLangBarToggleButton::GetIcon(HICON* icon) {
   // adopt this behavior for the consistency.
   // TODO(yukawa): Refactor this design. We should split TipLangBarToggleButton
   //     into two different classes anyway.
-  const TipLangBarMenuData& data = !IsMenuButton() && disabled_
+  // IMi：入力の場所がないときも「✕」にせず、最後の入力モード（あ・A）を出したままにする
+  // （今の Microsoft IME と同じ）。disabled_ のときもメニュー（プロパティなど）は出る
+  const TipLangBarMenuData& data = false
                                        ? menu_data_for_disabled_
                                        : *menu_data(menu_selected_);
 
@@ -742,7 +754,8 @@ HRESULT TipLangBarToggleButton::SetEnabled(bool enabled) {
     TipLangBarButton::OnUpdate(TF_LBI_ICON | TF_LBI_STATUS | TF_LBI_TEXT);
     return result;
   }
-  SetDescription(menu_data_for_disabled_.text_);
+  // IMi：説明も入力モードのまま（「✕」の説明にしない）
+  SetDescription(description_for_enabled_);
   TipLangBarButton::OnUpdate(TF_LBI_ICON | TF_LBI_STATUS | TF_LBI_TEXT);
   return S_OK;
 }

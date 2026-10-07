@@ -1,81 +1,43 @@
-[Mozc - a Japanese Input Method Editor designed for multi-platform](https://github.com/google/mozc)
-===================================
+# IMi
 
-Copyright 2010-2026 Google LLC
+前後の文脈を見て漢字を選び直す、Windows 向けの日本語入力（IME）です。Google の [Mozc](https://github.com/google/mozc) を元にしています。
 
-Mozc is a Japanese Input Method Editor (IME) designed for multi-platform such as
-Android OS, Apple macOS, Chromium OS, GNU/Linux and Microsoft Windows.  This
-OpenSource project originates from
-[Google Japanese Input](http://www.google.com/intl/ja/ime/).
+| 入力 | Mozc | IMi |
+| --- | --- | --- |
+| せんせいにいってみる | 先生に行ってみる | 先生に**言って**みる |
+| きのうはあめがふった | 機能は雨が振った | **昨日**は雨が**降った** |
 
-Mozc is not an officially supported Google product.
+- **文脈で選び直す**：入力中の文と直前に確定した文を手がかりに、漢字を選び直します。
+- **同時変換**：打つそばから変換して表示し、Enter で確定します。
+- **語の意味を表示**：選んでいる候補の意味を横に出します（ウィクショナリー日本語版から作った辞書）。
+- **PC の中だけで動く**：通信はしません。入力した内容が外に送られることはありません。
 
-Build Status
-------------
+## ダウンロードとインストール
 
-| Linux | Windows | macOS | Android lib |
-|:-----:|:-------:|:-----:|:-----------:|
-| [![Linux](https://github.com/google/mozc/actions/workflows/linux.yaml/badge.svg)](https://github.com/google/mozc/actions/workflows/linux.yaml) | [![Windows](https://github.com/google/mozc/actions/workflows/windows.yaml/badge.svg)](https://github.com/google/mozc/actions/workflows/windows.yaml) | [![macOS](https://github.com/google/mozc/actions/workflows/macos.yaml/badge.svg)](https://github.com/google/mozc/actions/workflows/macos.yaml) | [![Android lib](https://github.com/google/mozc/actions/workflows/android.yaml/badge.svg)](https://github.com/google/mozc/actions/workflows/android.yaml) |
+[Releases](../../releases/latest) から `IMi_<版>.msi` をダウンロードして実行します。
 
+- 対応：Windows 10・11（64ビット）。ARM 版は非対応。
+- 容量：約 300MB。メモリ：約 200MB。
 
-What's Mozc?
-------------
-For historical reasons, the project name *Mozc* has two different meanings:
+インストーラーには電子署名を付けていないため、次の警告が出ます（署名は当面対応しません）。
 
-1. Internal code name of Google Japanese Input that is still commonly used
-   inside Google.
-2. Project name to release a subset of Google Japanese Input in the form of
-   source code under OSS license without any warranty nor user support.
+1. 「Windows によって PC が保護されました」→「詳細情報」→「実行」
+2. 「このアプリがデバイスに変更を加えることを許可しますか？」（発行元：不明）→「はい」
 
-In this repository, *Mozc* means the second definition unless otherwise noted.
+インストール後、PC を再起動してください。
 
-Detailed differences between Google Japanese Input and Mozc are described in [About Branding](docs/about_branding.md).
+## 使い方
 
-For policies on vocabulary and conversion results, see
-[Vocabulary Policy](VOCABULARY_POLICY.md).
+- タスクバーの入力方式（「あ」「A」）か `Windows キー + Space` で IMi を選びます。
+- いつも IMi で始めるには、設定の「基本」のページの「既定にする」を押します。
+- 打つと同時に変換されます。Enter で確定、Space で候補を選び直します。
+- 無変換キーで半角英数、変換キーでひらがな（何も入力していないときは、無変換で IME オフ、変換で IME オン）。
+- 設定は、入力方式（「あ」）を右クリックして「プロパティ」から開きます。動作が重いときは、設定で「言語モデル」を切ると軽くなります。
 
-Build Instructions
-------------------
+アンインストールは「設定」→「アプリ」→「インストールされているアプリ」の「IMi」からです。
 
-* [How to build Mozc for Android](docs/build_mozc_for_android.md): for Android library (`libmozc.so`)
-* [How to build Mozc for Linux](docs/build_mozc_for_linux.md): for Linux desktop
-* [How to build Mozc for macOS](docs/build_mozc_in_osx.md): for macOS build
-* [How to build Mozc for Windows](docs/build_mozc_in_windows.md): for Windows
+## ライセンス
 
-Release Plan
-------------
+Mozc の部分は BSD 3-Clause（[LICENSE](LICENSE)）です。IMi で加えた部品と同梱の外部のもの（Qt、ONNX Runtime、小型言語モデル、SudachiDict、Wikipedia・ウィクショナリーから作った表と辞書）の条件は [imi/NOTICE.md](imi/NOTICE.md) にあります。
 
-tl;dr. **There is no stable version.**
-
-As described in [About Branding](docs/about_branding.md) page, Google does
-not promise any official QA for OSS Mozc project.  Because of this,
-Mozc does not have a concept of *Stable Release*.  Instead we change version
-number every time when we introduce non-trivial change.  If you are
-interested in packaging Mozc source code, or developing your own products
-based on Mozc, feel free to pick up any version.  They should be equally
-stable (or equally unstable) in terms of no official QA process.
-
-[Release History](docs/release_history.md) page may have additional
-information and useful links about recent changes.
-
-License
--------
-
-All Mozc code written by Google is released under
-[The BSD 3-Clause License](http://opensource.org/licenses/BSD-3-Clause).
-For third party code under [src/third_party](src/third_party) directory,
-see each sub directory to find the copyright notice.  Note also that
-outside [src/third_party](src/third_party) following directories contain
-third party code.
-
-### [src/data/dictionary_oss/](src/data/dictionary_oss)
-Mixed.
-See [src/data/dictionary_oss/README.txt](src/data/dictionary_oss/README.txt)
-
-### [src/data/test/dictionary/](src/data/test/dictionary)
-The same as [src/data/dictionary_oss/](src/data/dictionary_oss).
-See [src/data/dictionary_oss/README.txt](src/data/dictionary_oss/README.txt)
-
-### [src/data/test/stress_test/](src/data/test/stress_test)
-Public Domain.  See the comment in
-[src/data/test/stress_test/sentences.txt](src/data/test/stress_test/sentences.txt)
+開発者向けの説明は [imi/DEVELOP.md](imi/DEVELOP.md)、Mozc 自体の説明は [README.mozc.md](README.mozc.md) にあります。

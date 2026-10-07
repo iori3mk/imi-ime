@@ -71,6 +71,8 @@ filegroup(
         "dictionary07.txt",
         "dictionary08.txt",
         "dictionary09.txt",
+        # IMi：話し言葉の読み（「言う」の「ゆう」など。imi-dev の phase0/corpus/colloquial_add.py が作る）
+        "dictionary10.txt",
         "//dictionary:zip_code_data",
     ],
     visibility = ["//visibility:private"],

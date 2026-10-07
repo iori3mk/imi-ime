@@ -94,8 +94,11 @@ class RendererServerSendCommand : public client::SendCommandInterface {
   bool SendCommand(const mozc::commands::SessionCommand& command,
                    mozc::commands::Output* output) override {
 #ifdef _WIN32
+    // IMi：マウスのホイールで候補を動かす命令（CONVERT_NEXT_CANDIDATE・CONVERT_PREV_CANDIDATE）も通す
     if ((command.type() != commands::SessionCommand::SELECT_CANDIDATE) &&
-        (command.type() != commands::SessionCommand::HIGHLIGHT_CANDIDATE)) {
+        (command.type() != commands::SessionCommand::HIGHLIGHT_CANDIDATE) &&
+        (command.type() != commands::SessionCommand::CONVERT_NEXT_CANDIDATE) &&
+        (command.type() != commands::SessionCommand::CONVERT_PREV_CANDIDATE)) {
       // Unsupported command.
       return false;
     }

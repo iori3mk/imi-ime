@@ -28,6 +28,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "win32/tip/tip_edit_session.h"
+#include "win32/tip/imi_shared_mode.h"
 
 #include <msctf.h>
 #include <wil/com.h>
@@ -147,6 +148,24 @@ class AsyncSetFocusEditSessionImpl final
     }
     ITfThreadMgr* thread_manager = text_service_->GetThreadManager();
     TipThreadContext* thread_context = text_service_->GetThreadContext();
+    // IMi：入力モードをすべてのアプリで共通にするとき、最後にどこかのアプリで選ばれた入力モードに合わせる。
+    // Windows の値を書き換えると、言語バーから変えたときと同じ処理（OnChange）で Mozc にも伝わる
+    if (ImiShareInputMode()) {
+      bool shared_open = false;
+      DWORD shared_mode = 0;
+      DWORD current_mode = 0;
+      if (ImiReadSharedMode(&shared_open, &shared_mode)) {
+        if (shared_open != TipStatus::IsOpen(thread_manager)) {
+          TipStatus::SetIMEOpen(thread_manager, text_service_->GetClientID(), shared_open);
+        }
+        if (TipStatus::GetInputModeConversion(thread_manager, text_service_->GetClientID(),
+                                              &current_mode) &&
+            current_mode != shared_mode) {
+          TipStatus::SetInputModeConversion(thread_manager, text_service_->GetClientID(),
+                                            shared_mode);
+        }
+      }
+    }
     DWORD system_input_mode = 0;
     if (!TipStatus::GetInputModeConversion(
             thread_manager, text_service_->GetClientID(), &system_input_mode)) {
@@ -287,6 +306,23 @@ class AsyncSessionCommandEditSessionImpl final
     }
     if (!private_context->GetClient()->SendCommand(session_command_, &output)) {
       return E_FAIL;
+    }
+    // IMi（同時変換）：問い合わせの結果が今の表示と同じなら書き直さない。
+    // 同じ文字でも入力中の文字列を置き直すとアプリが描き直してちらつくため
+    if (session_command_.type() == SessionCommand::REFRESH_LIVE_CONVERSION) {
+      const Output& last = private_context->last_output();
+      if (output.preedit().SerializeAsString() ==
+              last.preedit().SerializeAsString() &&
+          output.candidate_window().SerializeAsString() ==
+              last.candidate_window().SerializeAsString()) {
+        *private_context->mutable_last_output() = output;
+        const HWND window = text_service_->renderer_callback_window_handle();
+        if (output.live_conversion_pending() && ::IsWindow(window)) {
+          ::SetTimer(window, kLiveConversionRefreshTimerId,
+                     kLiveConversionRefreshIntervalMs, nullptr);
+        }
+        return S_OK;
+      }
     }
     return TipEditSessionImpl::UpdateContext(
         text_service_.get(), context_.get(), write_cookie, output);
@@ -738,6 +774,13 @@ bool TipEditSession::OnRendererCallbackAsync(TipTextService* text_service,
       command.set_id(candidate_id);
       return OnSessionCommandAsync(text_service, context, command);
     }
+    // IMi：候補の窓のマウスのホイールで候補を1つずつ動かす
+    case SessionCommand::CONVERT_NEXT_CANDIDATE:
+    case SessionCommand::CONVERT_PREV_CANDIDATE: {
+      SessionCommand command;
+      command.set_type(type);
+      return OnSessionCommandAsync(text_service, context, command);
+    }
     default:
       return false;
   }
@@ -753,6 +796,22 @@ bool TipEditSession::SubmitAsync(TipTextService* text_service,
 
   SessionCommand session_command;
   session_command.set_type(SessionCommand::SUBMIT);
+  return OnSessionCommandAsync(text_service, context, session_command);
+}
+
+bool TipEditSession::RefreshLiveConversionAsync(TipTextService* text_service,
+                                                ITfContext* context) {
+  TipPrivateContext* private_context = text_service->GetPrivateContext(context);
+  if (!private_context) {
+    // This is an unmanaged context.
+    return false;
+  }
+  // タイマーが鳴るまでに変換・確定などで状態が変わっていれば問い合わせない
+  if (!private_context->last_output().live_conversion_pending()) {
+    return true;
+  }
+  SessionCommand session_command;
+  session_command.set_type(SessionCommand::REFRESH_LIVE_CONVERSION);
   return OnSessionCommandAsync(text_service, context, session_command);
 }
 
