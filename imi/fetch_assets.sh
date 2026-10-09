@@ -9,7 +9,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TAG="${1:-assets-2026.10.08}"
 mkdir -p "$ROOT/imi/assets"
-gh release download "$TAG" --repo iori3mk/imi-ime --dir "$ROOT/imi/assets" --clobber
+# Git Bash では gh（Windows のプログラム）に Windows の形のパスを渡す。
+# MSYS_NO_PATHCONV=1（build_msi_win.sh が設定する）だと /d/a/... のまま渡り、別の場所に保存される
+DIR="$ROOT/imi/assets"
+command -v cygpath > /dev/null && DIR="$(cygpath -w "$DIR")"
+gh release download "$TAG" --repo iori3mk/imi-ime --dir "$DIR" --clobber
 for f in tables.bin basep_int8s.onnx alt_int8s.onnx lm_shared.bin wikt_dict.bin verb_class.tsv pieces.tsv norm.tsv config.json bos_kv.f32 bos_lp.f32; do
   [ -s "$ROOT/imi/assets/$f" ] || { echo "取得できませんでした: $f（gh auth status と、タグ $TAG を確かめる）" >&2; exit 1; }
 done

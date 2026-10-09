@@ -90,9 +90,12 @@ jobs:
         working-directory: .\src
         run: python build_tools/update_deps.py
 
-      # Qt のビルドは時間がかかるので、できあがったものを取っておく
+      # Qt のビルドは時間がかかるので、できあがったものを取っておく。
+      # ただし配る版（タグ）では取っておいたものを使わず、毎回ソースから作る（できあがったものは
+      # 取得のときの SHA-256 のような確かめ方がなく、そのまま配布物に入るため）
       - name: Restore Qt
         id: qt
+        if: github.ref_type != 'tag'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: src/third_party/qt

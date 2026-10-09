@@ -1,0 +1,10 @@
+# ワークフローの Action（commit のハッシュで固定している）に新しい版が出たら、更新の Pull Request を作る
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
