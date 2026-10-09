@@ -1502,9 +1502,9 @@ void EngineConverter::RefreshPendingConversion(const composer::Composer& compose
 }
 
 // IMi（同時変換）：変換し直した segments_ を、表示した文節（live_shown_）に合わせる。
-// 変換し直すと、表示を据え置いていた間（区切りが違う）や、B の結果を待つ間に前回の表示を
-// 引き継いでいた文節で、表示と違う漢字になることがあるため。読みの全体が表示と違うとき
-// （末尾のまだ仮名になっていないローマ字など）は合わせない
+// 変換し直すと、B の結果を待つ間に前回の表示を引き継いでいた文節などで、表示と違う漢字になる
+// ことがあるため。読みの全体が表示と違うとき（末尾のまだ仮名になっていないローマ字が確定で
+// 仮名になるとき）は、区切りが同じ前の文節だけを合わせる
 void EngineConverter::MatchLiveShown(const composer::Composer& composer,
                                      const commands::Context& context) {
   if (live_shown_.empty()) {
@@ -1513,8 +1513,14 @@ void EngineConverter::MatchLiveShown(const composer::Composer& composer,
   std::string converted_key, shown_key;
   for (const Segment& segment : segments_.conversion_segments()) converted_key += segment.key();
   for (const LiveShown& shown : live_shown_) shown_key += shown.key;
+  size_t match_count = live_shown_.size();
   if (converted_key != shown_key) {
-    return;
+    match_count = 0;
+    while (match_count < live_shown_.size() &&
+           match_count < segments_.conversion_segments_size() &&
+           segments_.conversion_segment(match_count).key() == live_shown_[match_count].key) {
+      ++match_count;
+    }
   }
   const auto same_split = [&] {
     if (segments_.conversion_segments_size() != live_shown_.size()) return false;
@@ -1523,7 +1529,7 @@ void EngineConverter::MatchLiveShown(const composer::Composer& composer,
     }
     return true;
   };
-  if (!same_split()) {
+  if (match_count == live_shown_.size() && !same_split()) {
     std::vector<uint8_t> sizes;
     for (const LiveShown& shown : live_shown_) {
       const size_t len = Util::CharsLen(shown.key);
@@ -1544,11 +1550,14 @@ void EngineConverter::MatchLiveShown(const composer::Composer& composer,
       resized = converter_->ResizeSegments(&segments_, conversion_request, 0, sizes);
     }
     context_rerank::TakeLivePending();
+    // 区切りを変えた印を消す。残すと、確定したときに利用者が選んだ区切りとして学習され
+    // （UserBoundaryHistoryRewriter）、次からの変換の区切りが崩れる
+    segments_.set_resized(false);
     if (!resized || !same_split()) {
       return;
     }
   }
-  for (size_t i = 0; i < live_shown_.size(); ++i) {
+  for (size_t i = 0; i < match_count; ++i) {
     const LiveShown& shown = live_shown_[i];
     Segment* segment = segments_.mutable_conversion_segment(i);
     int found = -1;
@@ -1585,9 +1594,16 @@ void EngineConverter::MatchLiveShown(const composer::Composer& composer,
 }
 
 // IMi（同時変換）：表示したとおりに確定する。B は計算済みのものだけを使い（表示用の変換と
-// 同じ扱い）、絵文字は第1候補にしないで変換し、表示した文節に合わせて確定する
+// 同じ扱い）、絵文字は第1候補にしないで変換し、表示した文節に合わせて確定する。
+// 表示を据え置いている間（打った直後で後ろが仮名）は、据え置きを解いた表示（手を止めたら
+// 出る文）で確定する
 bool EngineConverter::CommitLivePreedit(const composer::Composer& composer,
                                         const commands::Context& context) {
+  const context_rerank::ScopedLiveCommit live_commit;
+  if (live_hold_since_ > 0) {
+    live_last_change_ = std::chrono::steady_clock::time_point();
+    UpdateLivePreedit(composer, context);
+  }
   bool converted = false;
   {
     context_rerank::ScopedLivePreview preview;

@@ -3,8 +3,10 @@
 
 #include "context_rerank/context_reranker.h"
 
+#include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -92,6 +94,21 @@ TEST_F(ContextRerankerTest, RejectsCorruptTables) {
   EXPECT_FALSE(LoadTables(with_u32(off, 1)));      // 最初の行が 0 から始まらない
   EXPECT_FALSE(LoadTables(with_u32(off + 4, 2)));  // 行の始まりが減る
   EXPECT_FALSE(LoadTables(with_u32(off + 8, 0)));  // 最後が組の数と合わない
+  // 数の値（鍵の後ろ：対象語の共起数の合計、背景の数）
+  auto with_f64 = [&](size_t offset, double v) {
+    std::string s = valid;
+    std::memcpy(s.data() + offset, &v, 8);
+    return s;
+  };
+  const size_t n_t = 8 + 16 + 8 + 6;
+  const size_t bg = n_t + 8 * 2;
+  EXPECT_FALSE(LoadTables(with_f64(n_t, std::nan(""))));  // NaN
+  EXPECT_FALSE(LoadTables(with_f64(bg, -1.0)));            // 背景の数が負
+  EXPECT_FALSE(LoadTables(with_f64(bg, std::numeric_limits<double>::infinity())));
+  std::string no_bg = with_f64(bg, 0.0);
+  const double zero = 0.0;
+  std::memcpy(no_bg.data() + bg + 8, &zero, 8);
+  EXPECT_FALSE(LoadTables(no_bg));  // 背景の数の合計が 0
   EXPECT_TRUE(LoadTables(valid));
 }
 

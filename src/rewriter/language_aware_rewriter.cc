@@ -128,6 +128,15 @@ bool IsRawQuery(const composer::ComposerData& composer,
     return false;
   }
 
+  // IMi：入力中の文字に半角の英字があれば、半角英数に切り替えてわざと英語を打ったもの
+  // （無変換・変換で切り替えて打った「私はClaudeを」など）なので、切り替え忘れとは見なさない。
+  // ひらがなの入力のまま打った英字は全角（「えぁｍｐぇ」）で表示される
+  for (const char c : composition) {
+    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+      return false;
+    }
+  }
+
   // If alphabet characters are in the middle of the composition, it is
   // probably a raw query.  For example, "えぁｍｐぇ" (example) contains
   // "m" and "p" in the middle.  So it is treated as a raw query.  On the

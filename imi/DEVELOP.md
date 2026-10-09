@@ -72,7 +72,7 @@ bash imi/build_msi_win.sh        # Git Bash で。imi/out/IMi_<版>.msi がで�
 - 表・小型言語モデル・語の意味の辞書はソースに含めず、このリポジトリの Releases（`assets-*` のタグ）に置いています。`imi/fetch_assets.sh` が `imi/assets/` に取得します（`build_msi_win.sh` が必要なら自動で呼ぶ）。
 - ONNX Runtime 1.30.0 はビルドのときに公式の配布物を取得します（`src/MODULE.bazel`）。
 - 開発者モードでない Windows では、Bazel に `--nowindows_enable_symlinks` が必要です（スクリプトは付けています）。
-- `build_msi_win.sh` は毎回 `src/version.bzl` の `BUILD_OSS` を1つ上げます。同じ版の MSI で上書きすると、変換エンジンが古いまま残るためです。
+- 版は `src/version.bzl` の MAJOR.MINOR.BUILD_OSS です。インストーラーは、入っている IMi を版によらず置き換え、ファイルも毎回上書きします。
 
 ## リリース
 

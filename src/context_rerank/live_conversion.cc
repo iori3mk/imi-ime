@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/numbers.h"
@@ -16,20 +17,17 @@ namespace {
 
 thread_local int preview_depth = 0;
 thread_local int skip_lm_depth = 0;
+thread_local int commit_depth = 0;
 thread_local bool pending = false;
 thread_local int budget_depth = 0;
 
 // rerank_config.txt の name の値（なければ default_value）
 std::string ReadConfigValue(absl::string_view name, absl::string_view default_value) {
   std::string value(default_value);
-  const std::string dir = AssetDir();
-  if (dir.empty()) return value;
-  std::ifstream cf(dir + "/rerank_config.txt");
-  std::string line;
-  while (std::getline(cf, line)) {
-    if (!line.empty() && line.back() == '\r') line.pop_back();
-    std::vector<std::string> f = absl::StrSplit(line, ' ', absl::SkipEmpty());
-    if (f.size() == 2 && f[0] == name) value = f[1];
+  std::vector<std::pair<std::string, std::string>> entries;
+  if (!ReadRerankConfig(&entries)) return value;
+  for (const auto& [key, v] : entries) {
+    if (key == name) value = v;
   }
   return value;
 }
@@ -52,6 +50,22 @@ std::string AssetDir() {
 #else
   return "";
 #endif  // _WIN32
+}
+
+bool ReadRerankConfig(std::vector<std::pair<std::string, std::string>>* entries) {
+  entries->clear();
+  const std::string dir = AssetDir();
+  if (dir.empty()) return false;
+  std::ifstream cf(dir + "/rerank_config.txt");
+  if (!cf) return false;
+  std::string line;
+  while (std::getline(cf, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();  // メモ帳などで CRLF にしたとき
+    std::vector<std::string> f = absl::StrSplit(line, ' ', absl::SkipEmpty());
+    if (f.size() != 2 || f[0][0] == '#') continue;
+    entries->emplace_back(std::move(f[0]), std::move(f[1]));
+  }
+  return true;
 }
 
 bool LiveConversionEnabled() {
@@ -83,6 +97,11 @@ ScopedSkipLm::ScopedSkipLm() { ++skip_lm_depth; }
 ScopedSkipLm::~ScopedSkipLm() { --skip_lm_depth; }
 
 bool SkipLm() { return skip_lm_depth > 0; }
+
+ScopedLiveCommit::ScopedLiveCommit() { ++commit_depth; }
+ScopedLiveCommit::~ScopedLiveCommit() { --commit_depth; }
+
+bool InLiveCommit() { return commit_depth > 0; }
 
 ScopedLmBudget::ScopedLmBudget() { ++budget_depth; }
 ScopedLmBudget::~ScopedLmBudget() { --budget_depth; }

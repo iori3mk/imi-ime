@@ -10,12 +10,18 @@
 #define MOZC_CONTEXT_RERANK_LIVE_CONVERSION_H_
 
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace mozc::context_rerank {
 
 // 表・資料・設定の置き場所。環境変数 MOZC_CONTEXT_RERANK_DIR が優先。
 // Windows で未設定なら mozc_server.exe と同じ場所の context_rerank。それ以外は空。
 std::string AssetDir();
+
+// rerank_config.txt の（名前, 値）を並びのとおりに読む。行末の CR（メモ帳などで CRLF にしたとき）と、
+// # で始まる行、2つに分かれない行は除く。ファイルがなければ false
+bool ReadRerankConfig(std::vector<std::pair<std::string, std::string>>* entries);
 
 // rerank_config.txt の live_conversion が 1 なら true（最初の呼び出しで読む）
 bool LiveConversionEnabled();
@@ -46,6 +52,17 @@ class ScopedSkipLm {
   ScopedSkipLm& operator=(const ScopedSkipLm&) = delete;
 };
 bool SkipLm();
+
+// 同時変換の確定（engine_converter の CommitLivePreedit）の間だけ置く。表示用の変換と同じく B は
+// 計算済みのものだけを使い、まだのものを裏に頼まない（確定した後に結果を使うことはないため）
+class ScopedLiveCommit {
+ public:
+  ScopedLiveCommit();
+  ~ScopedLiveCommit();
+  ScopedLiveCommit(const ScopedLiveCommit&) = delete;
+  ScopedLiveCommit& operator=(const ScopedLiveCommit&) = delete;
+};
+bool InLiveCommit();
 
 // IME の Space の変換（engine_converter の Convert）の間だけ置く。この間は B を待つ時間に上限
 // （rerank_config.txt の lm_budget_ms）を設け、間に合わなければ SetLivePending() で知らせる。

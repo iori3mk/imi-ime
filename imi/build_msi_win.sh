@@ -4,9 +4,7 @@
 # 前提（README.md の「ビルド」）：VS 2022（C++・ATL）、Python 3.12 以上、Bazelisk、.NET 8 SDK、
 # src で update_deps.py と build_qt.py を済ませておく。表とモデルがなければ imi/fetch_assets.sh で取得する。
 #
-# 版は src/version.bzl の MAJOR.MINOR.BUILD_OSS（1.0.1・1.1.0・2.0.0。BUILD_OSS が3つ目の数）。リリースのたびに手で決める
-# （直しだけなら 1.0.1、機能を足したら 1.1.0、大きく変えたら 2.0.0）。インストーラーは版の大小によらず入っている
-# IMi を置き換え、ファイルも毎回上書きするので、同じ版で作り直して入れ直してもよい。
+# 版は src/version.bzl の MAJOR.MINOR.BUILD_OSS。
 # 1. 配布物（imi/package：onnxruntime.dll と context_rerank/）を組み立てる
 # 2. 配布物入りでビルドする（build_installer.py が MOZC_CONTEXT_RERANK_PACKAGE を見て MSI に入れる）
 set -euo pipefail

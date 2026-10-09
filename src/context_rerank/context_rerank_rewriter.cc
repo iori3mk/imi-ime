@@ -107,18 +107,16 @@ ContextRerankRewriter::ContextRerankRewriter() {
   const std::string dir = AssetDir();
   if (dir.empty()) return;
   // 設定がなければ何もしない（改造前の Mozc と同じ動作）
-  std::ifstream cf(dir + "/rerank_config.txt");
-  if (!cf) return;
+  std::vector<std::pair<std::string, std::string>> config;
+  if (!ReadRerankConfig(&config)) return;
   timing_ = std::getenv("MOZC_CONTEXT_RERANK_TIMING") != nullptr;
   bool use_lm = true;
   int lm_threads = 2;
   bool ort_arena = false;
   std::string precision = "int8";
   std::string line;
-  while (std::getline(cf, line)) {
-    if (!line.empty() && line.back() == '\r') line.pop_back();  // メモ帳などで CRLF にしたとき
-    std::vector<std::string> f = absl::StrSplit(line, ' ', absl::SkipEmpty());
-    if (f.size() != 2 || f[0][0] == '#') continue;
+  for (const auto& [name, value] : config) {
+    const std::string f[2] = {name, value};
     double v = 0;
     if (f[0] == "precision") {
       precision = f[1];
@@ -291,8 +289,10 @@ bool ContextRerankRewriter::GetLmScores(const std::string& prefix, const std::st
   const std::string key = CacheKey(prefix, base, alts);
   if (LookupCache(key, scores)) return true;
   if (InLivePreview() && worker_.joinable()) {
-    absl::MutexLock lock(&mu_);
-    if (running_key_ != key) next_job_ = Job{key, prefix, base, alts};
+    if (!InLiveCommit()) {
+      absl::MutexLock lock(&mu_);
+      if (running_key_ != key) next_job_ = Job{key, prefix, base, alts};
+    }
     SetLivePending();
     return false;
   }

@@ -119,6 +119,18 @@ bool ContextReranker::LoadBinary(const std::string& path) {
   if (stop == nullptr || !doubles(&n_target_) || !doubles(&n_left_) || !doubles(&n_right_)) {
     return fail();
   }
+  // 数は有限で、n_t_（負は行なし）のほかは負にならず、背景の数の合計は正（点数が NaN になって
+  // 選び直しが黙って効かなくなるのを防ぐ）
+  double total_bg = 0;
+  for (uint32_t i = 0; i < K; ++i) {
+    if (!std::isfinite(n_t_[i]) || !std::isfinite(bg[i]) || bg[i] < 0 ||
+        !std::isfinite(n_target_[i]) || n_target_[i] < 0 || !std::isfinite(n_left_[i]) ||
+        n_left_[i] < 0 || !std::isfinite(n_right_[i]) || n_right_[i] < 0) {
+      return fail();
+    }
+    total_bg += bg[i];
+  }
+  if (K > 0 && !(total_bg > 0 && std::isfinite(total_bg))) return fail();
   has_row_.assign(K, false);
   for (uint32_t i = 0; i < K; ++i) {
     if (n_t_[i] >= 0) {
@@ -127,8 +139,6 @@ bool ContextReranker::LoadBinary(const std::string& path) {
       n_t_[i] = 0;
     }
   }
-  double total_bg = 0;
-  for (double x : bg) total_bg += x;
   log_pb_.assign(K, std::nan(""));
   stop_.assign(K, false);
   for (uint32_t i = 0; i < K; ++i) {
