@@ -1156,7 +1156,7 @@ void ConfigDialog::SetupImiTab() {
   {
     QVBoxLayout* page = add_page("基本");
     QVBoxLayout* c1 = add_card(page);
-    add_check(c1, imiLiveConversionCheckBox_, "入力しながら変換する（同時変換）",
+    add_check(c1, imiLiveConversionCheckBox_, "入力に合わせて変換する（同時変換）",
               "オフにすると、Space キーを押すまで仮名のまま表示します。");
     add_check(c1, imiUseLmCheckBox_, "前後の文脈で漢字を選び直す",
               "小さな言語モデルで文全体の自然さを比べます。オフにすると軽くなりますが、精度は少し下がります。");
