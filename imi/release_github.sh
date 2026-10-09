@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # IMi のリリースを GitHub に「下書き」で作る（公開は GitHub の画面で確かめてから行う）。
-#   bash imi/release_github.sh imi/out/IMi_3.34.<版>.msi 変更点.md
+#   bash imi/release_github.sh imi/out/IMi_<版>.msi 変更点.md
+# GitHub Actions がタグの push で呼ぶ（.github/workflows/windows.yaml）。手元からも使える。
 # 変更点のファイルには、利用者向けの変更点を Markdown の箇条書きで書く。
 # リリースの本文には、変更点・インストールの手順（警告の画面の説明）・SHA-256 を入れる。
 set -euo pipefail

@@ -74,9 +74,22 @@ bash imi/build_msi_win.sh        # Git Bash で。imi/out/IMi_<版>.msi がで�
 - 開発者モードでない Windows では、Bazel に `--nowindows_enable_symlinks` が必要です（スクリプトは付けています）。
 - 版は `src/version.bzl` の MAJOR.MINOR.BUILD_OSS です。インストーラーは、入っている IMi を版によらず置き換え、ファイルも毎回上書きします。
 
+## 自動の確認（GitHub Actions）
+
+`main` への push と Pull Request のたびに、GitHub の Windows のマシンで単体テストとインストーラーのビルドを行います（[.github/workflows/windows.yaml](../.github/workflows/windows.yaml)）。できたインストーラーは、その実行の Artifacts（`IMi-msi`、14日間）から取得できます。
+
 ## リリース
 
-`bash imi/release_github.sh <MSI> <変更点のファイル>` で、GitHub のリリースを**下書き**で作ります（MSI・SHA-256・変更点）。下書きを確かめてから、GitHub の画面で公開します。
+1. `src/version.bzl` の版を書き換えてコミットし、`main` に push します。
+2. 版と同じ名前の注釈付きタグを付けて push します。タグの本文には、利用者向けの変更点を Markdown の箇条書きで書きます。
+   ```sh
+   git tag -a v1.1.1 -F 変更点.md
+   git push origin v1.1.1
+   ```
+3. GitHub Actions がテストとビルドを行い、リリースを**下書き**で作ります（`IMi.msi`・SHA-256・変更点・インストールの手順）。タグと版が合わないときや、タグが注釈付きでないときは失敗します。
+4. 下書きの `IMi.msi` を入れて確かめてから、GitHub の画面で公開します。
+
+手元で作った MSI から下書きを作るときは `bash imi/release_github.sh <MSI> <変更点のファイル>` を使います。
 
 ## ブランチ
 
