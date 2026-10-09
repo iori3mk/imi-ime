@@ -46,5 +46,6 @@ bz build package --config release_build "--action_env=MOZC_CONTEXT_RERANK_PACKAG
 mkdir -p "$ROOT/imi/out"
 MAJOR=$(sed -n 's/^MAJOR = \([0-9]*\)$/\1/p' version.bzl)
 MINOR=$(sed -n 's/^MINOR = \([0-9]*\)$/\1/p' version.bzl)
+rm -f "$ROOT/imi/out/IMi_$MAJOR.$MINOR.$VER.msi"  # 前に作った同じ版（読み取り専用）があっても置き換える
 cp bazel-bin/win32/installer/Mozc64.msi "$ROOT/imi/out/IMi_$MAJOR.$MINOR.$VER.msi"
 echo "作りました: imi/out/IMi_$MAJOR.$MINOR.$VER.msi"
