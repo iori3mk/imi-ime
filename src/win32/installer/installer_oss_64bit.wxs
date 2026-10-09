@@ -133,17 +133,17 @@
        See https://github.com/google/mozc/issues/734#issuecomment-1524294119
     -->
     <!--
-       IMi: version 1.0 follows the pre-release versions 3.34.x (Mozc's numbering).
-       Treat every 3.x install as an older IMi to be replaced, and only refuse when a newer 1.x/2.x is installed.
+       IMi: replace any installed IMi, whatever its version. Versions are MAJOR.MINOR.PATCH (1.0.1, 1.1.0, 2.0.0)
+       and come after the pre-release 3.34.x and 1.0.6290, which are numerically higher.
+       Installing an older MSI over a newer one is allowed (it rolls back).
     -->
     <Upgrade Id="$(var.UpgradeCode)">
-      <UpgradeVersion Minimum="0.0.0.0" IncludeMinimum="yes" Maximum="3.255.65535" IncludeMaximum="yes" OnlyDetect="no" Property="UPGRADING" />
-      <UpgradeVersion Minimum="$(var.MozcVersion)" IncludeMinimum="no" Maximum="2.255.65535" IncludeMaximum="yes" OnlyDetect="yes" Property="NEWERVERSIONDETECTED" />
+      <UpgradeVersion Minimum="0.0.0.0" IncludeMinimum="yes" Maximum="255.255.65535" IncludeMaximum="yes" OnlyDetect="no" Property="UPGRADING" />
     </Upgrade>
     <!--
        IMi: always overwrite the installed files. The old product is removed after the new files are
        installed (RemoveExistingProducts after InstallExecute), so without "a" a file whose version is
-       not higher (3.34.x -> 1.0.x, or the same build) would be kept from the old install.
+       not higher (an older or the same version) would be kept from the old install.
     -->
     <Property Id="REINSTALLMODE" Value="amus" />
 

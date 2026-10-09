@@ -31,8 +31,8 @@ MAJOR = 1
 
 MINOR = 0
 
-# BUILD number used for the OSS version.
-BUILD_OSS = 6290
+# IMi: the patch number (MAJOR.MINOR.PATCH, e.g. 1.0.1). Set by hand for each release.
+BUILD_OSS = 1
 
 # Number to be increased. This value may be replaced by other tools.
 BUILD = BUILD_OSS
