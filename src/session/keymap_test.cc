@@ -285,8 +285,29 @@ TEST_F(KeyMapTest, GetCommand_overlay) {
     key_event.set_special_key(commands::KeyEvent::HENKAN);
     DirectInputState::Commands command;
     EXPECT_TRUE(manager.GetCommandDirect(key_event, &command));
-    // MSIME defines HENKAN as Reconvert, but the overlay defines it as IME_ON.
-    EXPECT_EQ(command, DirectInputState::Commands::IME_ON);
+    // MSIME defines HENKAN as Reconvert, but the overlay defines it as
+    // InputModeHiragana (IMi: turns on the IME in Hiragana).
+    EXPECT_EQ(command, DirectInputState::Commands::COMPOSITION_MODE_HIRAGANA);
+  }
+  {
+    // IMi: while composing, Muhenkan switches to half-width alphanumeric
+    // instead of turning off the IME, and Henkan switches back to Hiragana.
+    commands::KeyEvent key_event;
+    CompositionState::Commands command;
+    key_event.set_special_key(commands::KeyEvent::MUHENKAN);
+    EXPECT_TRUE(manager.GetCommandComposition(key_event, &command));
+    EXPECT_EQ(command, CompositionState::Commands::COMPOSITION_MODE_HALF_ALPHANUMERIC);
+    key_event.set_special_key(commands::KeyEvent::HENKAN);
+    EXPECT_TRUE(manager.GetCommandComposition(key_event, &command));
+    EXPECT_EQ(command, CompositionState::Commands::COMPOSITION_MODE_HIRAGANA);
+  }
+  {
+    // Muhenkan still turns off the IME when nothing is being composed.
+    commands::KeyEvent key_event;
+    key_event.set_special_key(commands::KeyEvent::MUHENKAN);
+    PrecompositionState::Commands command;
+    EXPECT_TRUE(manager.GetCommandPrecomposition(key_event, &command));
+    EXPECT_EQ(command, PrecompositionState::Commands::IME_OFF);
   }
 }
 

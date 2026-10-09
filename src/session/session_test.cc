@@ -1761,7 +1761,8 @@ TEST_F(SessionTest, ConvertToTransliterationWithMultipleSegments) {
     const commands::Output& output = command.output();
     EXPECT_FALSE(output.has_result());
     EXPECT_TRUE(output.has_preedit());
-    EXPECT_FALSE(output.has_candidate_window());
+    // IMi: the candidate list is shown from the first conversion.
+    EXPECT_TRUE(output.has_candidate_window());
 
     const commands::Preedit& conversion = output.preedit();
     EXPECT_EQ(conversion.segment_size(), 2);
@@ -2274,7 +2275,8 @@ TEST_F(SessionTest, ExceededComposition) {
 
   command.Clear();
   session.Convert(&command);
-  EXPECT_FALSE(command.output().has_candidate_window());
+  // IMi: the candidate list is shown from the first conversion.
+  EXPECT_TRUE(command.output().has_candidate_window());
 
   // The status should remain the preedit status, although the
   // previous command was convert.  The next command makes sure that
@@ -3728,10 +3730,11 @@ TEST_F(SessionTest, Issue1805239) {
   EXPECT_TRUE(command.output().has_candidate_window());
 
   SendSpecialKey(commands::KeyEvent::LEFT, &session, &command);
-  EXPECT_FALSE(command.output().has_candidate_window());
+  // IMi: the candidate list stays shown when moving to another segment.
+  EXPECT_TRUE(command.output().has_candidate_window());
 
   SendSpecialKey(commands::KeyEvent::RIGHT, &session, &command);
-  EXPECT_FALSE(command.output().has_candidate_window());
+  EXPECT_TRUE(command.output().has_candidate_window());
 
   SendSpecialKey(commands::KeyEvent::SPACE, &session, &command);
   EXPECT_TRUE(command.output().has_candidate_window());
@@ -4228,8 +4231,9 @@ TEST_F(SessionTest, ExitTemporaryAlphanumModeAfterCommittingSuggestion1) {
       .WillOnce(DoAll(SetArgPointee<1>(segments), Return(true)));
 
   EXPECT_TRUE(session.Convert(&command));
-  EXPECT_FALSE(command.output().has_candidate_window());
-  EXPECT_FALSE(command.output().candidate_window().has_focused_index());
+  // IMi: the candidate list is shown from the first conversion.
+  EXPECT_TRUE(command.output().has_candidate_window());
+  EXPECT_TRUE(command.output().candidate_window().has_focused_index());
   EXPECT_EQ(command.output().candidate_window().focused_index(), 0);
   EXPECT_FALSE(command.output().has_result());
   EXPECT_EQ(command.output().mode(), commands::HIRAGANA);  // obsolete

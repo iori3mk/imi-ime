@@ -39,8 +39,7 @@ jobs:
         working-directory: .\src
         run: python build_tools/update_deps.py
 
-      # 変換に関わるパッケージのテスト。末尾の5つは今は失敗するので外している。
-      # 表と小型言語モデルは読ませない（入っていない場所を渡す）
+      # 変換に関わるパッケージのテスト。表と小型言語モデルは読ませない（入っていない場所を渡す）
       - name: Run tests
         shell: cmd
         working-directory: .\src
@@ -52,8 +51,6 @@ jobs:
           --
           //composer/... //context_rerank/... //converter/... //dictionary/...
           //engine/... //prediction/... //rewriter/... //session/... //win32/tip/...
-          -//engine:engine_converter_test -//engine:engine_output_test
-          -//session:keymap_test -//session:session_regression_test -//session:session_test
 
       - name: Collect failing test logs
         if: failure()

@@ -544,94 +544,40 @@ TEST(EngineOutputTest, FillUsages) {
 
   candidate_list.set_focused(true);
 
+  // IMi: only the usage of the focused candidate is filled. When the focused
+  // candidate has no usage, no usages are filled.
   candidate_list.MoveToId(2);
   candidate_window_proto.Clear();
   output::FillUsages(segment, candidate_list, &candidate_window_proto);
-  ASSERT_TRUE(candidate_window_proto.has_usages());
-  // There is no focused usage.
-  EXPECT_FALSE(candidate_window_proto.usages().has_focused_index());
-  EXPECT_EQ(candidate_window_proto.usages().information_size(), 2);
-  EXPECT_EQ(candidate_window_proto.usages().information(0).id(), 10);
-  EXPECT_EQ(candidate_window_proto.usages().information(0).title(),
-            dummy_segments[0].usage_title);
-  EXPECT_EQ(candidate_window_proto.usages().information(0).description(),
-            dummy_segments[0].usage_description);
-  EXPECT_EQ(candidate_window_proto.usages().information(1).id(), 20);
-  EXPECT_EQ(candidate_window_proto.usages().information(1).title(),
-            dummy_segments[4].usage_title);
-  EXPECT_EQ(candidate_window_proto.usages().information(1).description(),
-            dummy_segments[4].usage_description);
+  EXPECT_FALSE(candidate_window_proto.has_usages());
 
   candidate_list.MoveToId(12);
   candidate_window_proto.Clear();
   output::FillUsages(segment, candidate_list, &candidate_window_proto);
   ASSERT_TRUE(candidate_window_proto.has_usages());
-  // Focused usage index is 20
-  EXPECT_TRUE(candidate_window_proto.usages().has_focused_index());
-  EXPECT_EQ(candidate_window_proto.usages().focused_index(), 2);
-  EXPECT_EQ(candidate_window_proto.usages().information_size(), 4);
-  EXPECT_EQ(candidate_window_proto.usages().information(0).id(), 30);
-  EXPECT_EQ(candidate_window_proto.usages().information(0).title(),
-            dummy_segments[10].usage_title);
-  EXPECT_EQ(candidate_window_proto.usages().information(0).description(),
-            dummy_segments[10].usage_description);
-  EXPECT_EQ(candidate_window_proto.usages().information(1).id(), 40);
-  EXPECT_EQ(candidate_window_proto.usages().information(1).title(),
-            dummy_segments[11].usage_title);
-  EXPECT_EQ(candidate_window_proto.usages().information(1).description(),
-            dummy_segments[11].usage_description);
-  EXPECT_EQ(candidate_window_proto.usages().information(2).id(), 50);
-  EXPECT_EQ(candidate_window_proto.usages().information(2).title(),
-            dummy_segments[12].usage_title);
-  EXPECT_EQ(candidate_window_proto.usages().information(2).description(),
-            dummy_segments[12].usage_description);
-  EXPECT_EQ(candidate_window_proto.usages().information(3).id(), 60);
-  EXPECT_EQ(candidate_window_proto.usages().information(3).title(),
-            dummy_segments[13].usage_title);
-  EXPECT_EQ(candidate_window_proto.usages().information(3).description(),
-            dummy_segments[13].usage_description);
-
-  candidate_list.MoveToId(19);
-  candidate_window_proto.Clear();
-  output::FillUsages(segment, candidate_list, &candidate_window_proto);
-  ASSERT_TRUE(candidate_window_proto.has_usages());
-  EXPECT_TRUE(candidate_window_proto.usages().has_focused_index());
   EXPECT_EQ(candidate_window_proto.usages().focused_index(), 0);
-  // usages(id:100) of "val19" and "val21" are merged
-  EXPECT_EQ(candidate_window_proto.usages().information_size(), 2);
-  EXPECT_EQ(candidate_window_proto.usages().information(0).id(), 100);
+  ASSERT_EQ(candidate_window_proto.usages().information_size(), 1);
+  EXPECT_EQ(candidate_window_proto.usages().information(0).id(), 50);
   EXPECT_EQ(candidate_window_proto.usages().information(0).title(),
-            dummy_segments[19].usage_title);
+            dummy_segments[12].usage_title);
   EXPECT_EQ(candidate_window_proto.usages().information(0).description(),
-            dummy_segments[19].usage_description);
-  EXPECT_EQ(candidate_window_proto.usages().information(1).id(), 110);
-  EXPECT_EQ(candidate_window_proto.usages().information(1).title(),
-            dummy_segments[20].usage_title);
-  EXPECT_EQ(candidate_window_proto.usages().information(1).description(),
-            dummy_segments[20].usage_description);
+            dummy_segments[12].usage_description);
+  ASSERT_EQ(candidate_window_proto.usages().information(0).candidate_id_size(),
+            1);
+  EXPECT_EQ(candidate_window_proto.usages().information(0).candidate_id(0), 12);
 
-  candidate_list.MoveToId(20);
-  candidate_window_proto.Clear();
-  output::FillUsages(segment, candidate_list, &candidate_window_proto);
-  ASSERT_TRUE(candidate_window_proto.has_usages());
-  EXPECT_TRUE(candidate_window_proto.usages().has_focused_index());
-  EXPECT_EQ(candidate_window_proto.usages().focused_index(), 1);
-
-  // usages(id:100) of "val19" and "val21" are merged
+  // Candidates sharing a usage id are not merged; only the focused one is
+  // filled.
   candidate_list.MoveToId(21);
   candidate_window_proto.Clear();
   output::FillUsages(segment, candidate_list, &candidate_window_proto);
   ASSERT_TRUE(candidate_window_proto.has_usages());
-  EXPECT_TRUE(candidate_window_proto.usages().has_focused_index());
   EXPECT_EQ(candidate_window_proto.usages().focused_index(), 0);
-
-  // usages(id:110) of "val20" and "val22" are merged
-  candidate_list.MoveToId(22);
-  candidate_window_proto.Clear();
-  output::FillUsages(segment, candidate_list, &candidate_window_proto);
-  ASSERT_TRUE(candidate_window_proto.has_usages());
-  EXPECT_TRUE(candidate_window_proto.usages().has_focused_index());
-  EXPECT_EQ(candidate_window_proto.usages().focused_index(), 1);
+  ASSERT_EQ(candidate_window_proto.usages().information_size(), 1);
+  EXPECT_EQ(candidate_window_proto.usages().information(0).id(), 100);
+  ASSERT_EQ(candidate_window_proto.usages().information(0).candidate_id_size(),
+            1);
+  EXPECT_EQ(candidate_window_proto.usages().information(0).candidate_id(0), 21);
 
   candidate_list.MoveToId(28);
   candidate_window_proto.Clear();
@@ -664,8 +610,8 @@ TEST(EngineOutputTest, FillCandidateWindowRange) {
   ASSERT_EQ(candidate_window_proto.candidate(0).id(), 0);
   ASSERT_EQ(candidate_window_proto.candidate(0).information_id(), 10);
   ASSERT_TRUE(candidate_window_proto.has_usages());
-  ASSERT_EQ(candidate_window_proto.usages().information_size(),
-            candidate_window_proto.candidate_size());
+  // IMi: only the usage of the focused candidate.
+  ASSERT_EQ(candidate_window_proto.usages().information_size(), 1);
   ASSERT_EQ(candidate_window_proto.usages().information(0).id(), 10);
   ASSERT_EQ(candidate_window_proto.usages().information(0).candidate_id(0), 0);
 
@@ -680,10 +626,9 @@ TEST(EngineOutputTest, FillCandidateWindowRange) {
   ASSERT_EQ(candidate_window_proto.candidate(0).id(), 9);
   ASSERT_EQ(candidate_window_proto.candidate(0).information_id(), 19);
   ASSERT_TRUE(candidate_window_proto.has_usages());
-  ASSERT_EQ(candidate_window_proto.usages().information_size(),
-            candidate_window_proto.candidate_size());
-  ASSERT_EQ(candidate_window_proto.usages().information(0).id(), 19);
-  ASSERT_EQ(candidate_window_proto.usages().information(0).candidate_id(0), 9);
+  ASSERT_EQ(candidate_window_proto.usages().information_size(), 1);
+  ASSERT_EQ(candidate_window_proto.usages().information(0).id(), 21);
+  ASSERT_EQ(candidate_window_proto.usages().information(0).candidate_id(0), 11);
 }
 
 TEST(EngineOutputTest, FillShortcuts) {

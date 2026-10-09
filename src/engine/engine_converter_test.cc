@@ -111,6 +111,10 @@ class EngineConverterTest : public testing::TestWithTempUserProfile {
   void SetUp() override {
     config_ = std::make_shared<Config>();
     config_->set_use_cascading_window(true);
+    // IMi shows the candidate list from the first conversion by default. The
+    // tests below check Mozc's behavior, which shows it from the second one.
+    // ConvertShowsCandidateListByDefault checks IMi's default.
+    config_->set_imi_show_candidates_on_convert(false);
     request_ = std::make_shared<Request>();
 
     table_ = std::make_shared<composer::Table>();
@@ -427,6 +431,34 @@ class EngineConverterTest : public testing::TestWithTempUserProfile {
 
 #define EXPECT_SELECTED_CANDIDATE_INDICES_EQ(converter, indices) \
   EXPECT_PRED_FORMAT2(ExpectSelectedCandidateIndices, converter, indices);
+
+TEST_F(EngineConverterTest, ConvertShowsCandidateListByDefault) {
+  // IMi: with the default config, the first conversion shows the candidate
+  // list.
+  auto config = std::make_shared<Config>();
+  ASSERT_TRUE(config->imi_show_candidates_on_convert());
+  auto mock_converter = std::make_shared<MockConverter>();
+  EngineConverter converter(mock_converter, request_, config);
+  {
+    Segments segments;
+    SetAiueo(&segments);
+    composer_->InsertCharacterPreedit("あいうえお");
+    FillT13Ns(&segments, composer_.get());
+    EXPECT_CALL(*mock_converter, StartConversion(_, _))
+        .WillOnce(DoAll(SetArgPointee<1>(segments), Return(true)));
+  }
+
+  composer_->InsertCharacterPreedit(kChars_Aiueo);
+  EXPECT_TRUE(converter.Convert(*composer_));
+  ASSERT_TRUE(converter.IsActive());
+  EXPECT_TRUE(IsCandidateListVisible(converter));
+
+  commands::Output output;
+  converter.FillOutput(*composer_, &output);
+  EXPECT_TRUE(output.has_preedit());
+  ASSERT_TRUE(output.has_candidate_window());
+  EXPECT_EQ(output.candidate_window().focused_index(), 0);
+}
 
 TEST_F(EngineConverterTest, Convert) {
   auto mock_converter = std::make_shared<MockConverter>();
@@ -3681,7 +3713,8 @@ TEST_F(EngineConverterTest, ResetByPrecedingText) {
     converter.Revert();
   }
 
-  // preceding_text == "" && history_segments != "" -> Reset should be called.
+  // preceding_text == "" && history_segments != "" -> Reset should not be
+  // called (IMi).
   {
     Segments segments;
     SetAiueo(&segments);
@@ -3693,7 +3726,9 @@ TEST_F(EngineConverterTest, ResetByPrecedingText) {
     SetSegments(segments, &converter);
     Context context;
     context.set_preceding_text("");
-    EXPECT_CALL(*mock_converter, ResetConversion(_));
+    // IMi: an empty preceding text does not reset the history, since some
+    // applications (e.g. terminals) always send an empty one.
+    EXPECT_CALL(*mock_converter, ResetConversion(_)).Times(0);
     converter.OnStartComposition(context);
     EXPECT_CALL(*mock_converter, RevertConversion(_));
     converter.Revert();

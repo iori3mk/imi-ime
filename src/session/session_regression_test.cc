@@ -184,7 +184,8 @@ TEST_F(SessionRegressionTest, ConvertToTransliterationWithMultipleSegments) {
     const commands::Output& output = command.output();
     EXPECT_FALSE(output.has_result());
     EXPECT_TRUE(output.has_preedit());
-    EXPECT_FALSE(output.has_candidate_window());
+    // IMi: the candidate list is shown from the first conversion.
+    EXPECT_TRUE(output.has_candidate_window());
 
     const commands::Preedit& conversion = output.preedit();
     ASSERT_LE(2, conversion.segment_size());
