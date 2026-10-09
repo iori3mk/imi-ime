@@ -53,6 +53,10 @@
 | `ort_arena` | 0 | ONNX Runtime の作業用メモリの溜め置き（0 で切る。メモリ約100MB減） |
 | `verb_theta` | 0.5 | 「言」と「行」を選び直すしきい値 |
 
+### 調べもの用の記録
+
+利用者の設定の場所（`%USERPROFILE%\AppData\LocalLow\Mozc`）に空のファイル `imi_ctx_debug` を置くと、前の文脈の扱いと確定した文字列を同じ場所の `imi_ctx.log` に書きます。アプリから受け取ったカーソルの前の文字や、入力した文がそのまま残るので、調べ終えたら `imi_ctx_debug` と `imi_ctx.log` を消してください。ファイルがあるかは変換エンジンの起動のあと最初に1回だけ確かめるので、置いたり消したりしたら PC を再起動するか、変換エンジン（`mozc_server.exe`）を止めてください。
+
 ## ビルド（Windows）
 
 必要なもの（Mozc と同じ。[docs/build_mozc_in_windows.md](../docs/build_mozc_in_windows.md)）：Visual Studio 2022（C++ によるデスクトップ開発、ATL）、Python 3.12 以上、[Bazelisk](https://github.com/bazelbuild/bazelisk)、.NET 8 SDK、[GitHub CLI](https://cli.github.com/)（表とモデルの取得に使う）。

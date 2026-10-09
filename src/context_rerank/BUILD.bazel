@@ -4,6 +4,7 @@ load(
     "//:build_defs.bzl",
     "mozc_cc_binary",
     "mozc_cc_library",
+    "mozc_cc_test",
     "mozc_select",
 )
 
@@ -97,6 +98,19 @@ mozc_cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+mozc_cc_test(
+    name = "context_reranker_test",
+    size = "small",
+    srcs = ["context_reranker_test.cc"],
+    deps = [
+        ":context_reranker",
+        "//base:file_util",
+        "//base/file:temp_dir",
+        "//testing:gunit_main",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 

@@ -72,33 +72,53 @@ bool ContextReranker::LoadBinary(const std::string& path) {
   if (!m.ok() || m->size() < 24 || std::memcmp(m->data(), "CTXRR002", 8) != 0) return false;
   mmap_ = std::make_unique<Mmap>(*std::move(m));
   const absl::string_view buf(mmap_->data(), mmap_->size());
+  // 途中で切れた・壊れたファイルで範囲の外を読まないよう、読むたびに残りの大きさを確かめる。
+  // 足りなければ nullptr を返し、読み込みを失敗にする（表なしの Mozc と同じ動きに戻る）
   size_t pos = 8;
-  auto take = [&](size_t bytes) {
+  auto take = [&](size_t bytes) -> const char* {
+    if (bytes > buf.size() - pos) return nullptr;
     const char* p = buf.data() + pos;
     pos += bytes;
     return p;
   };
+  auto fail = [&] {
+    mmap_.reset();
+    view_ids_.clear();
+    return false;
+  };
   uint32_t head[4];
-  std::memcpy(head, take(16), 16);
+  const char* h = take(16);
+  if (h == nullptr) return fail();
+  std::memcpy(head, h, 16);
   const uint32_t K = head[0];
+  // 鍵の数ごとに少なくとも 4（鍵の終わり）+ 8×5（数）+ 1（止め語）+ 4×3（行の始まり）バイトある
+  if (K > (buf.size() - pos) / 57) return fail();
   std::vector<uint32_t> ends(K);
-  std::memcpy(ends.data(), take(4 * K), 4 * K);
+  const char* e = take(4 * static_cast<size_t>(K));
+  if (e == nullptr) return fail();
+  std::memcpy(ends.data(), e, 4 * static_cast<size_t>(K));
+  for (uint32_t i = 1; i < K; ++i) {
+    if (ends[i] < ends[i - 1]) return fail();
+  }
   const char* blob = take(K ? ends[K - 1] : 0);
+  if (blob == nullptr) return fail();
   for (uint32_t i = 0; i < K; ++i) {
     const uint32_t b = i ? ends[i - 1] : 0;
     view_ids_.emplace(absl::string_view(blob + b, ends[i] - b), i);
   }
   auto doubles = [&](std::vector<double>* v) {
+    const char* p = take(8 * static_cast<size_t>(K));
+    if (p == nullptr) return false;
     v->resize(K);
-    std::memcpy(v->data(), take(8 * K), 8 * K);
+    std::memcpy(v->data(), p, 8 * static_cast<size_t>(K));
+    return true;
   };
   std::vector<double> bg;
-  doubles(&n_t_);
-  doubles(&bg);
+  if (!doubles(&n_t_) || !doubles(&bg)) return fail();
   const char* stop = take(K);
-  doubles(&n_target_);
-  doubles(&n_left_);
-  doubles(&n_right_);
+  if (stop == nullptr || !doubles(&n_target_) || !doubles(&n_left_) || !doubles(&n_right_)) {
+    return fail();
+  }
   has_row_.assign(K, false);
   for (uint32_t i = 0; i < K; ++i) {
     if (n_t_[i] >= 0) {
@@ -119,12 +139,25 @@ bool ContextReranker::LoadBinary(const std::string& path) {
   for (double x : n_target_) total_target_ += x;
   for (int t = 0; t < 3; ++t) {
     auto* tab = t == 0 ? &pairs_ : t == 1 ? &left_ : &right_;
-    tab->off = take(4 * (static_cast<size_t>(K) + 1));
-    tab->flat = take(8 * static_cast<size_t>(head[1 + t]));
+    const char* off = take(4 * (static_cast<size_t>(K) + 1));
+    const char* flat = off == nullptr ? nullptr : take(8 * static_cast<size_t>(head[1 + t]));
+    if (flat == nullptr) return fail();
+    // 行の始まりは 0 から増えていく一方で、最後が組の数と同じ（Lookup が flat の外を読まない）
+    uint32_t prev = 0;
+    for (uint32_t i = 0; i <= K; ++i) {
+      uint32_t o;
+      std::memcpy(&o, off + 4 * static_cast<size_t>(i), 4);
+      if ((i == 0 && o != 0) || o < prev) return fail();
+      prev = o;
+    }
+    if (prev != head[1 + t]) return fail();
+    tab->off = off;
+    tab->flat = flat;
     tab->n = K;
     num_pairs_ += head[1 + t];
   }
-  return pos == buf.size();
+  if (pos != buf.size()) return fail();
+  return true;
 }
 
 bool ContextReranker::LoadTsv(const std::string& dir) {

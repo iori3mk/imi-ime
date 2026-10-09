@@ -146,6 +146,8 @@ std::vector<AltScores> LmScorer::Score(absl::string_view prefix,
   }
   if (seq0.size() > kMaxLen) {  // 長すぎるときは前の文脈の左を削る
     const size_t cut = seq0.size() - kMaxLen;
+    // 入力中の文だけで長さを超えるときは、前の文脈を削っても収まらないので選び直さない
+    if (cut + 1 > pre.size()) return {};
     pre.erase(pre.begin() + 1, pre.begin() + 1 + cut);
     seq0.erase(seq0.begin() + 1, seq0.begin() + 1 + cut);
   }

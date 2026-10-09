@@ -1300,6 +1300,7 @@ bool ContainsEmoji(absl::string_view value) {
 void EngineConverter::UpdateLivePreedit(const composer::Composer& composer,
                                         const commands::Context& context) {
   live_text_.clear();
+  live_shown_.clear();
   live_pending_ = false;
   if (!context_rerank::LiveConversionEnabled() || !config_->imi_live_conversion() ||
       !CheckState(COMPOSITION | SUGGESTION) || composer.Empty() ||
@@ -1309,6 +1310,7 @@ void EngineConverter::UpdateLivePreedit(const composer::Composer& composer,
       composer.GetCursor() != composer.GetLength() ||
       composer.GetInputFieldType() == commands::Context::PASSWORD) {
     live_front_.clear();
+    live_front_cands_.clear();
     live_front_reading_.clear();
     live_hold_since_ = 0;
     live_last_input_.clear();
@@ -1360,20 +1362,22 @@ void EngineConverter::UpdateLivePreedit(const composer::Composer& composer,
   const bool pending = context_rerank::TakeLivePending();
   // 各文節の（読み, 表示）。表示には絵文字を出さない（絵文字は Space の変換で選ぶ）
   std::vector<std::pair<std::string, std::string>> segs;
+  std::vector<converter::Candidate> cands;  // segs の各文節で表示する候補
   std::string reading;
   for (const Segment& segment : segments.conversion_segments()) {
     if (segment.candidates_size() == 0) {
       return;
     }
-    std::string value = segment.candidate(0).value;
+    size_t shown = 0;
     for (size_t c = 0; c < segment.candidates_size(); ++c) {
       if (!ContainsEmoji(segment.candidate(c).value)) {
-        value = segment.candidate(c).value;
+        shown = c;
         break;
       }
     }
     reading += segment.key();
-    segs.emplace_back(std::string(segment.key()), std::move(value));
+    segs.emplace_back(std::string(segment.key()), segment.candidate(shown).value);
+    cands.push_back(segment.candidate(shown));
   }
   const size_t reading_len = Util::CharsLen(reading);
 
@@ -1422,16 +1426,31 @@ void EngineConverter::UpdateLivePreedit(const composer::Composer& composer,
     // 前半はそのまま（漢字は新しい変換の同じ文節があればそちらでもよいが、区切りが違うので前のもの）
     for (const auto& [key, value] : live_front_) text += value;
     text += reading.substr(live_front_reading_.size());
+    for (size_t i = 0; i < live_front_.size(); ++i) {
+      live_shown_.push_back({live_front_[i].first, live_front_[i].second,
+                             i < live_front_cands_.size()
+                                 ? std::optional<converter::Candidate>(live_front_cands_[i])
+                                 : std::nullopt});
+    }
+    const std::string rest = reading.substr(live_front_reading_.size());
+    if (!rest.empty()) live_shown_.push_back({rest, rest, std::nullopt});
   } else {
     live_hold_since_ = 0;
     // B の結果がまだのあいだは、区切りが同じ前半の文節は前回の表示（B の判断済み）を引き継ぐ。
     // 打鍵のたびに「T0+K5 の候補 → B の候補」と行き来してちらつかないようにする
     if (stabilize && pending && extends_front) {
-      for (size_t i = 0; i < j && i < segs.size(); ++i) segs[i].second = live_front_[i].second;
+      for (size_t i = 0; i < j && i < segs.size(); ++i) {
+        segs[i].second = live_front_[i].second;
+        if (i < live_front_cands_.size()) cands[i] = live_front_cands_[i];
+      }
     }
     for (const auto& [key, value] : segs) text += value;
+    for (size_t i = 0; i < segs.size(); ++i) {
+      live_shown_.push_back({segs[i].first, segs[i].second, cands[i]});
+    }
     // 最後の文節は打鍵で変わりやすいので、それより前を次の比較の基準にする
     live_front_.assign(segs.begin(), segs.end() - 1);
+    live_front_cands_.assign(cands.begin(), cands.end() - 1);
     live_front_reading_.clear();
     for (const auto& [key, value] : live_front_) live_front_reading_ += key;
   }
@@ -1482,8 +1501,91 @@ void EngineConverter::RefreshPendingConversion(const composer::Composer& compose
   candidate_list_visible_ = visible;
 }
 
-// IMi（同時変換）：表示と同じになるよう、B は計算済みのものだけを使い（表示用の変換と
-// 同じ扱い）、絵文字は第1候補にしないで変換し、そのまま確定する
+// IMi（同時変換）：変換し直した segments_ を、表示した文節（live_shown_）に合わせる。
+// 変換し直すと、表示を据え置いていた間（区切りが違う）や、B の結果を待つ間に前回の表示を
+// 引き継いでいた文節で、表示と違う漢字になることがあるため。読みの全体が表示と違うとき
+// （末尾のまだ仮名になっていないローマ字など）は合わせない
+void EngineConverter::MatchLiveShown(const composer::Composer& composer,
+                                     const commands::Context& context) {
+  if (live_shown_.empty()) {
+    return;
+  }
+  std::string converted_key, shown_key;
+  for (const Segment& segment : segments_.conversion_segments()) converted_key += segment.key();
+  for (const LiveShown& shown : live_shown_) shown_key += shown.key;
+  if (converted_key != shown_key) {
+    return;
+  }
+  const auto same_split = [&] {
+    if (segments_.conversion_segments_size() != live_shown_.size()) return false;
+    for (size_t i = 0; i < live_shown_.size(); ++i) {
+      if (segments_.conversion_segment(i).key() != live_shown_[i].key) return false;
+    }
+    return true;
+  };
+  if (!same_split()) {
+    std::vector<uint8_t> sizes;
+    for (const LiveShown& shown : live_shown_) {
+      const size_t len = Util::CharsLen(shown.key);
+      if (len == 0 || len > std::numeric_limits<uint8_t>::max()) return;
+      sizes.push_back(static_cast<uint8_t>(len));
+    }
+    const ConversionRequest conversion_request =
+        ConversionRequestBuilder()
+            .SetComposer(composer)
+            .SetRequestView(*request_)
+            .SetContextView(context)
+            .SetConfigView(*config_)
+            .SetRequestType(ConversionRequest::CONVERSION)
+            .Build();
+    bool resized = false;
+    {
+      context_rerank::ScopedLivePreview preview;
+      resized = converter_->ResizeSegments(&segments_, conversion_request, 0, sizes);
+    }
+    context_rerank::TakeLivePending();
+    if (!resized || !same_split()) {
+      return;
+    }
+  }
+  for (size_t i = 0; i < live_shown_.size(); ++i) {
+    const LiveShown& shown = live_shown_[i];
+    Segment* segment = segments_.mutable_conversion_segment(i);
+    int found = -1;
+    for (size_t c = 0; c < segment->candidates_size(); ++c) {
+      if (segment->candidate(static_cast<int>(c)).value == shown.value) {
+        found = static_cast<int>(c);
+        break;
+      }
+    }
+    if (found > 0) {
+      segment->move_candidate(found, 0);
+    } else if (found < 0) {
+      // 変換し直した候補にないとき：表示したときの候補を足す。据え置いて仮名で見せた後半は、
+      // 第1候補を写して仮名にする
+      std::unique_ptr<converter::Candidate> cand;
+      if (shown.candidate.has_value()) {
+        cand = std::make_unique<converter::Candidate>(*shown.candidate);
+      } else if (segment->candidates_size() > 0) {
+        cand = std::make_unique<converter::Candidate>(segment->candidate(0));
+        cand->key = shown.key;
+        cand->value = shown.value;
+        cand->content_key = shown.key;
+        cand->content_value = shown.value;
+        cand->description.clear();
+        cand->attributes |= converter::Attribute::NO_LEARNING;  // 品詞は写した元のままなので学習しない
+      } else {
+        continue;
+      }
+      segment->insert_candidate(0, std::move(cand));
+    }
+  }
+  UpdateCandidateList();
+  InitializeSelectedCandidateIndices();
+}
+
+// IMi（同時変換）：表示したとおりに確定する。B は計算済みのものだけを使い（表示用の変換と
+// 同じ扱い）、絵文字は第1候補にしないで変換し、表示した文節に合わせて確定する
 bool EngineConverter::CommitLivePreedit(const composer::Composer& composer,
                                         const commands::Context& context) {
   bool converted = false;
@@ -1506,6 +1608,7 @@ bool EngineConverter::CommitLivePreedit(const composer::Composer& composer,
       }
     }
   }
+  MatchLiveShown(composer, context);
   Commit(composer, context);
   return true;
 }

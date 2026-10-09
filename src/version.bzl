@@ -29,10 +29,10 @@
 
 MAJOR = 1
 
-MINOR = 0
+MINOR = 1
 
 # IMi: the patch number (MAJOR.MINOR.PATCH, e.g. 1.0.1). Set by hand for each release.
-BUILD_OSS = 1
+BUILD_OSS = 0
 
 # Number to be increased. This value may be replaced by other tools.
 BUILD = BUILD_OSS

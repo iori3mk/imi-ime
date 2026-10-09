@@ -248,6 +248,9 @@ class EngineConverter : public EngineConverterInterface {
   void RefreshPendingConversion(const composer::Composer& composer,
                                 const commands::Context& context) override;
   void CancelPendingConversion() override { conv_pending_ = false; }
+  // IMi（同時変換）：segments_ の各文節の第1候補を、表示した live_shown_ に合わせる
+  void MatchLiveShown(const composer::Composer& composer,
+                      const commands::Context& context);
   bool CommitLivePreedit(const composer::Composer& composer,
                          const commands::Context& context) override;
 
@@ -397,7 +400,16 @@ class EngineConverter : public EngineConverterInterface {
   // 表示の安定化：前回出した表示の、最後の文節より前の（読み, 表示）と、その読み。
   // 区切りが変わって前半を据え置いている間は、据え置き始めたときの読みの文字数
   std::vector<std::pair<std::string, std::string>> live_front_;
+  std::vector<converter::Candidate> live_front_cands_;  // live_front_ の各文節で表示した候補
   std::string live_front_reading_;
+  // 表示している各文節（読み, 表示）と、その候補（据え置いて仮名で見せている後半は候補なし）。
+  // Enter の確定では変換し直した結果をこれに合わせ、表示したとおりに確定する
+  struct LiveShown {
+    std::string key;
+    std::string value;
+    std::optional<converter::Candidate> candidate;
+  };
+  std::vector<LiveShown> live_shown_;
   size_t live_hold_since_ = 0;
   // 入力（ローマ字を含む表示前の文字列）と、それが最後に変わった時刻。打鍵が止まったかの判定に使う
   std::string live_last_input_;

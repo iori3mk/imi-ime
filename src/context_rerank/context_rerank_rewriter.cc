@@ -39,10 +39,12 @@ std::string LastChars(const std::string& s, int n) {
   return u.size() <= static_cast<size_t>(n) ? s : Util::Utf32ToUtf8(u.substr(u.size() - n));
 }
 
-// 調べもの用：設定の場所に imi_ctx_debug があるときだけ、前の文脈の扱いを imi_ctx.log に足す
+// 調べもの用：設定の場所に imi_ctx_debug があるときだけ、前の文脈の扱いを imi_ctx.log に足す。
+// あるかは変換エンジンの起動のあと最初に1回だけ確かめる（作ったり消したりしたら変換エンジンを起動し直す）
 void DebugLog(absl::string_view what, absl::string_view detail) {
   const std::string dir = SystemUtil::GetUserProfileDirectory();
-  if (!FileUtil::FileExists(FileUtil::JoinPath(dir, "imi_ctx_debug")).ok()) return;
+  static const bool enabled = FileUtil::FileExists(FileUtil::JoinPath(dir, "imi_ctx_debug")).ok();
+  if (!enabled) return;
   OutputFileStream f(FileUtil::JoinPath(dir, "imi_ctx.log"), std::ios::app);
   f << std::chrono::duration_cast<std::chrono::milliseconds>(
            std::chrono::system_clock::now().time_since_epoch()).count()
@@ -114,6 +116,7 @@ ContextRerankRewriter::ContextRerankRewriter() {
   std::string precision = "int8";
   std::string line;
   while (std::getline(cf, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();  // メモ帳などで CRLF にしたとき
     std::vector<std::string> f = absl::StrSplit(line, ' ', absl::SkipEmpty());
     if (f.size() != 2 || f[0][0] == '#') continue;
     double v = 0;
@@ -421,6 +424,7 @@ bool ContextRerankRewriter::Rewrite(const ConversionRequest& request, Segments* 
       // 迷う文節：漢字を含む鍵が2種類以上。鍵が作れない候補でも、助詞で始まり、第1候補が漢字か
       // カタカナで始まるときは1種類として数える。名詞を確定した後に助詞から打つと「空メールが」と
       // 「からメールが」、「担ってました」と「になってました」で迷うため（記号や仮名書きの違いは数えない）
+      if (shown.empty()) continue;  // 設定の n_cand・margin がおかしいとき
       const std::string& top = inputs[i].values[order[i][shown[0]]];
       absl::flat_hash_set<std::string> heads;
       for (int p : shown) {
@@ -494,6 +498,8 @@ bool ContextRerankRewriter::Rewrite(const ConversionRequest& request, Segments* 
         cand->content_value = cand->value;
         cand->content_key = cand->value;
         cand->description.clear();
+        // 品詞は写した元の候補（「二」など）のままなので、学習には使わない
+        cand->attributes |= converter::Attribute::NO_LEARNING;
         seg->insert_candidate(0, std::move(cand));
       }
       changed = true;
