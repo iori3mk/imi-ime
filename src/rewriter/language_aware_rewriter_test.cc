@@ -424,6 +424,23 @@ TEST_F(LanguageAwareRewriterTest, NotRewriteWhenAsciiModeInputIsMixed) {
   EXPECT_EQ(segments.conversion_segment(0).candidates_size(), 0);
 }
 
+// 英数の入力で打ったのが数字だけなら、わざと英語を混ぜたことにはならない。
+// ひらがなのまま打った英語（「えぁｍｐぇ」）は切り替え忘れとして英語の候補を出す
+TEST_F(LanguageAwareRewriterTest, RewriteWhenOnlyDigitsAreAsciiModeInput) {
+  MockDictionary dictionary;
+  LanguageAwareRewriter rewriter(PosMatcher(data_manager_.GetPosMatcherData()),
+                                 dictionary);
+  std::string composition;
+  Segments segments;
+  EXPECT_TRUE(RewriteWithInputModes(rewriter,
+                                    {{transliteration::HALF_ASCII, "2026"},
+                                     {transliteration::HIRAGANA, "example"}},
+                                    &composition, &segments));
+  EXPECT_EQ(composition, "2026えぁｍｐぇ");
+  EXPECT_THAT(segments.conversion_segment(0),
+              HasSingleCandidate(IsLangAwareCandidate("2026example")));
+}
+
 // 入力中の英字を半角で表示する設定でも、ひらがなの入力のまま英語を打った（切り替え忘れ）なら
 // 英語の候補を出す
 TEST_F(LanguageAwareRewriterTest, RewriteWithHalfWidthAlphabetPreedit) {

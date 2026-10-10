@@ -436,6 +436,7 @@ mozc_cc_library(
     ],
 )
 
+# 同時変換の設定は最初に読んだ値を使い続けるので、ほかのテストとまとめず単独のテストにする
 mozc_cc_test(
     name = "engine_converter_live_test",
     size = "small",
@@ -445,6 +446,7 @@ mozc_cc_test(
         ":engine_converter",
         "//base:file_util",
         "//base/file:temp_dir",
+        "//context_rerank:live_conversion",
         "//composer",
         "//composer:table",
         "//converter:converter_mock",

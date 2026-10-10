@@ -507,9 +507,12 @@ std::string ComposerData::GetRawString() const {
 
 bool ComposerData::HasAsciiModeInput() const {
   for (const CharChunk& chunk : composition_.GetCharChunkList()) {
-    if (chunk.transliterator() == Transliterators::HALF_ASCII ||
-        chunk.transliterator() == Transliterators::FULL_ASCII) {
-      return true;
+    if (chunk.transliterator() != Transliterators::HALF_ASCII &&
+        chunk.transliterator() != Transliterators::FULL_ASCII) {
+      continue;
+    }
+    for (const char c : chunk.raw()) {
+      if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) return true;
     }
   }
   return false;

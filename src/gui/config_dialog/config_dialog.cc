@@ -1183,7 +1183,7 @@ void ConfigDialog::SetupImiTab() {
     const std::string version_label = "今の版：" + version;
     add_row(c4, version_label.c_str(),
             "ブラウザで IMi の最新のリリースのページを開きます。版の番号が今の版より新しければ、"
-            "そこから IMi_<版>.msi をダウンロードして入れ直してください。",
+            "そこからインストーラー（IMi_ で始まる .msi のファイル）をダウンロードして入れ直してください。",
             check_update);
     page->addStretch();
   }
