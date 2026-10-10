@@ -86,8 +86,8 @@ bash imi/build_msi_win.sh        # Git Bash で。imi/out/IMi_<版>.msi がで�
    git tag -a v1.1.1 -F 変更点.md
    git push origin v1.1.1
    ```
-3. GitHub Actions がテストとビルドを行い、リリースを**下書き**で作ります（`IMi.msi`・SHA-256・変更点・インストールの手順）。タグと版が合わないときや、タグが注釈付きでないときは失敗します。
-4. 下書きの `IMi.msi` を入れて確かめてから、GitHub の画面で公開します。
+3. GitHub Actions がテストとビルドを行い、リリースを**下書き**で作ります（`IMi_<版>.msi`・SHA-256・変更点・インストールの手順）。タグと版が合わないときや、タグが注釈付きでないときは失敗します。
+4. 下書きの `IMi_<版>.msi` を入れて確かめてから、GitHub の画面で公開します。
 
 手元で作った MSI から下書きを作るときは `bash imi/release_github.sh <MSI> <変更点のファイル>` を使います。
 
