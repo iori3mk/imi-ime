@@ -505,6 +505,16 @@ std::string ComposerData::GetRawString() const {
   return common::GetRawString(composition_);
 }
 
+bool ComposerData::HasAsciiModeInput() const {
+  for (const CharChunk& chunk : composition_.GetCharChunkList()) {
+    if (chunk.transliterator() == Transliterators::HALF_ASCII ||
+        chunk.transliterator() == Transliterators::FULL_ASCII) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::string ComposerData::GetRawSubString(const size_t position,
                                           const size_t size) const {
   return common::GetRawSubString(composition_, position, size);

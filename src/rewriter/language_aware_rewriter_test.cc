@@ -32,10 +32,14 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/strings/string_view.h"
 #include "composer/composer.h"
 #include "composer/table.h"
+#include "config/character_form_manager.h"
+#include "config/config_handler.h"
 #include "converter/attribute.h"
 #include "converter/candidate.h"
 #include "converter/segments.h"
@@ -50,6 +54,7 @@
 #include "testing/gmock.h"
 #include "testing/gunit.h"
 #include "testing/mozctest.h"
+#include "transliteration/transliteration.h"
 
 namespace mozc {
 namespace {
@@ -370,6 +375,81 @@ TEST_F(LanguageAwareRewriterTest, IsDisabledInTwelveKeyLayout) {
 
     EXPECT_EQ(rewriter.capability(conv_request), param.type);
   }
+}
+
+// IMi：打った文字を、入力モードを切り替えながら入れて切り替え忘れの候補を作るか確かめる。
+// parts は（入力モード, 打つキー）の並び
+bool RewriteWithInputModes(
+    const LanguageAwareRewriter& rewriter,
+    const std::vector<std::pair<transliteration::TransliterationType,
+                                absl::string_view>>& parts,
+    std::string* composition, Segments* segments) {
+  commands::Request client_request;
+  client_request.set_language_aware_input(
+      commands::Request::LANGUAGE_AWARE_SUGGESTION);
+  const config::Config config = config::ConfigHandler::DefaultConfig();
+  auto table = std::make_shared<composer::Table>();
+  table->InitializeWithRequestAndConfig(client_request, config);
+  composer::Composer composer(table, client_request, config);
+  for (const auto& [mode, keys] : parts) {
+    composer.SetInputMode(mode);
+    InsertASCIISequence(keys, &composer);
+  }
+  *composition = composer.GetStringForPreedit();
+  Segment* segment = segments->add_segment();
+  segment->set_key(*composition);
+  const ConversionRequest request =
+      ConversionRequestBuilder()
+          .SetComposer(composer)
+          .SetRequest(client_request)
+          .SetRequestType(ConversionRequest::SUGGESTION)
+          .Build();
+  return rewriter.Rewrite(request, segments);
+}
+
+// 無変換・変換で英数の入力に切り替えて英語を混ぜたときは、打ったキーのままの候補
+// （「asitanomeetingnidemasu」）を出さない
+TEST_F(LanguageAwareRewriterTest, NotRewriteWhenAsciiModeInputIsMixed) {
+  MockDictionary dictionary;
+  LanguageAwareRewriter rewriter(PosMatcher(data_manager_.GetPosMatcherData()),
+                                 dictionary);
+  std::string composition;
+  Segments segments;
+  EXPECT_FALSE(RewriteWithInputModes(rewriter,
+                                     {{transliteration::HIRAGANA, "asitano"},
+                                      {transliteration::HALF_ASCII, "meeting"},
+                                      {transliteration::HIRAGANA, "nidemasu"}},
+                                     &composition, &segments));
+  EXPECT_EQ(composition, "あしたのmeetingにでます");
+  EXPECT_EQ(segments.conversion_segment(0).candidates_size(), 0);
+}
+
+// 入力中の英字を半角で表示する設定でも、ひらがなの入力のまま英語を打った（切り替え忘れ）なら
+// 英語の候補を出す
+TEST_F(LanguageAwareRewriterTest, RewriteWithHalfWidthAlphabetPreedit) {
+  config::Config config = config::ConfigHandler::DefaultConfig();
+  for (config::Config::CharacterFormRule& rule :
+       *config.mutable_character_form_rules()) {
+    if (rule.group() == "A") {
+      rule.set_preedit_character_form(config::Config::HALF_WIDTH);
+    }
+  }
+  config::CharacterFormManager::GetCharacterFormManager()->ReloadConfig(config);
+
+  MockDictionary dictionary;
+  LanguageAwareRewriter rewriter(PosMatcher(data_manager_.GetPosMatcherData()),
+                                 dictionary);
+  std::string composition;
+  Segments segments;
+  EXPECT_TRUE(RewriteWithInputModes(
+      rewriter, {{transliteration::HIRAGANA, "python"}}, &composition,
+      &segments));
+  EXPECT_EQ(composition, "pyてょn");
+  EXPECT_THAT(segments.conversion_segment(0),
+              HasSingleCandidate(IsLangAwareCandidate("python")));
+
+  config::CharacterFormManager::GetCharacterFormManager()->ReloadConfig(
+      config::ConfigHandler::DefaultConfig());
 }
 
 }  // namespace

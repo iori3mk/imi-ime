@@ -128,13 +128,11 @@ bool IsRawQuery(const composer::ComposerData& composer,
     return false;
   }
 
-  // IMi：入力中の文字に半角の英字があれば、半角英数に切り替えてわざと英語を打ったもの
+  // IMi：英数の入力モードに切り替えて打った文字があれば、わざと英語を混ぜたもの
   // （無変換・変換で切り替えて打った「明日のmeetingに」など）なので、切り替え忘れとは見なさない。
-  // ひらがなの入力のまま打った英字は全角（「えぁｍｐぇ」）で表示される
-  for (const char c : composition) {
-    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
-      return false;
-    }
+  // 表示の文字幅では決めない（入力中の英字を半角で表示する設定もあるため）
+  if (composer.HasAsciiModeInput()) {
+    return false;
   }
 
   // If alphabet characters are in the middle of the composition, it is

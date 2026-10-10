@@ -108,6 +108,9 @@ class ComposerData {
   // composition, GetRawSubString(0, 2) returns "sashi".
   std::string GetRawSubString(size_t position, size_t size) const;
 
+  // IMi：英数の入力（半角英数・全角英数の入力モード）で打った文字を含むか
+  bool HasAsciiModeInput() const;
+
   // Generate transliterations.
   void GetTransliterations(transliteration::Transliterations* t13ns) const;
 
