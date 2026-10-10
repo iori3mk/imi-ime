@@ -437,6 +437,29 @@ mozc_cc_library(
 )
 
 mozc_cc_test(
+    name = "engine_converter_live_test",
+    size = "small",
+    srcs = ["engine_converter_live_test.cc"],
+    tags = ["noandroid"],
+    deps = [
+        ":engine_converter",
+        "//base:file_util",
+        "//base/file:temp_dir",
+        "//composer",
+        "//composer:table",
+        "//converter:converter_mock",
+        "//converter:segments",
+        "//protocol:commands_cc_proto",
+        "//protocol:config_cc_proto",
+        "//request:conversion_request",
+        "//testing:gunit_main",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+mozc_cc_test(
     name = "engine_converter_test",
     size = "small",
     timeout = "moderate",
