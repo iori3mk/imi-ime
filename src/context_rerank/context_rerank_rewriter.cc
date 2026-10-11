@@ -346,6 +346,9 @@ bool ContextRerankRewriter::Rewrite(const ConversionRequest& request, Segments* 
     absl::flat_hash_set<std::string> seen;
     for (size_t c = 0; c < s.candidates_size() && c < kScan && idx[i].size() < kTop; ++c) {
       const converter::Candidate& cand = s.candidate(static_cast<int>(c));
+      // 記号の一覧から足された候補（部首の「長」＝ながい など）は読みの一部しか表さないので、選び直しの対象にしない
+      // （「社」の後の「ながい」が「社長」になっていた）。第1候補のときはそのまま
+      if (c > 0 && cand.category == converter::Candidate::SYMBOL) continue;
       if (!seen.insert(cand.value).second) continue;
       idx[i].push_back(static_cast<int>(c));
       inputs[i].values.push_back(cand.value);
