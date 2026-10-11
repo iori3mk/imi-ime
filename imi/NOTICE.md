@@ -13,6 +13,7 @@
 | [Wikipedia 日本語版](https://ja.wikipedia.org/) | 共起と隣接の表（`tables.bin`）の元になった文 | CC BY-SA 4.0 |
 | [Tatoeba](https://tatoeba.org/) の日本語の文 | 共起と隣接の表（`tables.bin`）の元になった文（暮らしの言い回し） | CC BY 2.0 FR（一部 CC0） |
 | [ウィクショナリー日本語版](https://ja.wiktionary.org/) | 候補の横に出す語の意味（`wikt_dict.bin`。意味の行を取り出し、記法を除いて辞書の形にした） | CC BY-SA（ウィクショナリーの条件に合わせ、`wikt_dict.bin` も CC BY-SA で提供） |
+| [ウィクショナリー日本語版](https://ja.wiktionary.org/) | 辞書に加えた古い言い方の動詞の形（燃ゆる・流るる など。`src/data/dictionary_oss/dictionary11.txt`。古典日本語の項目の見出しと活用の型から作った） | CC BY-SA（`dictionary11.txt` も CC BY-SA で提供。出典：ウィクショナリー日本語版の投稿者） |
 
 - 表（`tables.bin`・`verb_class.tsv`）は、Wikipedia 日本語版の文（`tables.bin` は Tatoeba の日本語の文も）から数えた語の組の出現回数で、文そのものは含みません。Wikipedia の条件に合わせて **CC BY-SA 4.0** で提供します（出典：Wikipedia 日本語版の執筆者、Tatoeba の投稿者）。
 - 小型言語モデルは、元のモデルの重みを int8 に変換したものです（作り方は開発用リポジトリ imi-dev の `phase0/ime_eval/lm_onnx.py`）。
