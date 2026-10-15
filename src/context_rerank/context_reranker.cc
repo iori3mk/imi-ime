@@ -331,15 +331,12 @@ std::vector<int> ContextReranker::Rerank(const std::vector<SegmentInput>& segs,
       }
       const uint32_t h0 = heads[i][0];
       const bool has_t0 = InCooc(h0);
-      const double t0_0 = has_t0 ? CoocScore(h0, words) : 0;
       bool has_adj = false;
-      double adj_0 = 0;
       uint32_t left_n = kNone, right_n = kNone;
       if (lam2 != 0) {
         left_n = i > 0 ? cur[i - 1] : left_last;
         right_n = i + 1 < n ? cur[i + 1] : kNone;
         has_adj = KnownAdj(h0);
-        if (has_adj) adj_0 = AdjScore(h0, left_n, right_n);
       }
       int best_k = 0;
       double best_margin = 0;
@@ -349,8 +346,21 @@ std::vector<int> ContextReranker::Rerank(const std::vector<SegmentInput>& segs,
         const bool use_adj = has_adj && KnownAdj(hk) && hk != h0;
         if (!use_t0 && !use_adj) continue;
         double margin = -(base[i][k] - base[i][0]) / kCostScale;
-        if (use_adj) margin += lam2 * (AdjScore(hk, left_n, right_n) - adj_0);
-        if (use_t0) margin += lam * (CoocScore(hk, words) - t0_0);
+        // 比べるのは、入れ替える候補と一緒に出た（隣り合った）ことのある語だけ。一度も出ていない語まで
+        // 比べると、よく出る語ほど「期待より少ない」ことで点が下がり、珍しい語が選ばれやすい
+        // （「内田」「お世話」の近くの「さま」が「様」でなく「左馬」になっていた）
+        if (use_adj) {
+          const uint32_t l = left_n != kNone && left_.Lookup(hk, left_n) > 0 ? left_n : kNone;
+          const uint32_t r = right_n != kNone && right_.Lookup(hk, right_n) > 0 ? right_n : kNone;
+          margin += lam2 * (AdjScore(hk, l, r) - AdjScore(h0, l, r));
+        }
+        if (use_t0) {
+          std::vector<uint32_t> seen;
+          for (uint32_t w : words) {
+            if (pairs_.Lookup(hk, w) > 0) seen.push_back(w);
+          }
+          margin += lam * (CoocScore(hk, seen) - CoocScore(h0, seen));
+        }
         if (margin > best_margin) {
           best_k = static_cast<int>(k);
           best_margin = margin;
