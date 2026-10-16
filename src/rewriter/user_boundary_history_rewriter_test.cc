@@ -37,6 +37,7 @@
 #include "base/file_util.h"
 #include "base/system_util.h"
 #include "config/config_handler.h"
+#include "converter/attribute.h"
 #include "converter/candidate.h"
 #include "converter/segments.h"
 #include "protocol/config.pb.h"
@@ -174,6 +175,65 @@ TEST_F(UserBoundaryHistoryRewriterTest, JoinSegmentsByHistory) {
     EXPECT_EQ(resize_request->segment_index, 0);
     EXPECT_THAT(resize_request->segment_sizes,
                 ElementsAre(4, 0, 0, 0, 0, 0, 0, 0));
+  }
+}
+
+// ユーザー辞書の語が第1候補の文節は、覚えた区切りで分けない
+TEST_F(UserBoundaryHistoryRewriterTest, NoSplitUserDictionaryWord) {
+  SetIncognito(false);
+  SetLearningLevel(config::Config::DEFAULT_HISTORY);
+  const ConversionRequest convreq = CreateConversionRequest();
+
+  UserBoundaryHistoryRewriter rewriter;
+  {
+    Segments segments =
+        MakeSegments({"たん", "ぽぽ", "さま"}, Segment::FIXED_VALUE);
+    segments.set_resized(true);
+    rewriter.Finish(convreq, segments);
+  }
+  {
+    Segments segments = MakeSegments({"たんぽぽ", "さま"}, Segment::FREE);
+    segments.mutable_conversion_segment(0)->mutable_candidate(0)->attributes |=
+        converter::Attribute::USER_DICTIONARY;
+    EXPECT_FALSE(
+        rewriter.CheckResizeSegmentsRequest(convreq, segments).has_value());
+  }
+  {
+    Segments segments = MakeSegments({"たんぽぽ"}, Segment::FREE);
+    segments.mutable_conversion_segment(0)->mutable_candidate(0)->attributes |=
+        converter::Attribute::USER_DICTIONARY;
+    EXPECT_FALSE(
+        rewriter.CheckResizeSegmentsRequest(convreq, segments).has_value());
+  }
+  {
+    // ユーザー辞書の語でなければ、今までどおり分ける
+    Segments segments = MakeSegments({"たんぽぽ", "さま"}, Segment::FREE);
+    std::optional<RewriterInterface::ResizeSegmentsRequest> resize_request =
+        rewriter.CheckResizeSegmentsRequest(convreq, segments);
+    ASSERT_TRUE(resize_request.has_value());
+    EXPECT_THAT(resize_request->segment_sizes,
+                ElementsAre(2, 2, 2, 0, 0, 0, 0, 0));
+  }
+}
+
+// ユーザー辞書の語が第1候補の文節は、覚えた区切りでほかの文節とつながない
+TEST_F(UserBoundaryHistoryRewriterTest, NoJoinUserDictionaryWord) {
+  SetIncognito(false);
+  SetLearningLevel(config::Config::DEFAULT_HISTORY);
+  const ConversionRequest convreq = CreateConversionRequest();
+
+  UserBoundaryHistoryRewriter rewriter;
+  {
+    Segments segments = MakeSegments({"たんぽぽ"}, Segment::FIXED_VALUE);
+    segments.set_resized(true);
+    rewriter.Finish(convreq, segments);
+  }
+  {
+    Segments segments = MakeSegments({"たん", "ぽぽ"}, Segment::FREE);
+    segments.mutable_conversion_segment(1)->mutable_candidate(0)->attributes |=
+        converter::Attribute::USER_DICTIONARY;
+    EXPECT_FALSE(
+        rewriter.CheckResizeSegmentsRequest(convreq, segments).has_value());
   }
 }
 

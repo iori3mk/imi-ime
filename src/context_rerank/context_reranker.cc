@@ -348,7 +348,7 @@ std::vector<int> ContextReranker::Rerank(const std::vector<SegmentInput>& segs,
         double margin = -(base[i][k] - base[i][0]) / kCostScale;
         // 比べるのは、入れ替える候補と一緒に出た（隣り合った）ことのある語だけ。一度も出ていない語まで
         // 比べると、よく出る語ほど「期待より少ない」ことで点が下がり、珍しい語が選ばれやすい
-        // （「内田」「お世話」の近くの「さま」が「様」でなく「左馬」になっていた）
+        // （名前や「お世話」の近くの「さま」が「様」でなく「左馬」になっていた）
         if (use_adj) {
           const uint32_t l = left_n != kNone && left_.Lookup(hk, left_n) > 0 ? left_n : kNone;
           const uint32_t r = right_n != kNone && right_.Lookup(hk, right_n) > 0 ? right_n : kNone;

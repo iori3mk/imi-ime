@@ -103,7 +103,8 @@ std::string CacheKey(absl::string_view prefix, absl::string_view base,
 
 }  // namespace
 
-ContextRerankRewriter::ContextRerankRewriter() {
+ContextRerankRewriter::ContextRerankRewriter(const dictionary::PosMatcher* pos_matcher)
+    : pos_matcher_(pos_matcher) {
   const std::string dir = AssetDir();
   if (dir.empty()) return;
   // 設定がなければ何もしない（改造前の Mozc と同じ動作）
@@ -349,6 +350,11 @@ bool ContextRerankRewriter::Rewrite(const ConversionRequest& request, Segments* 
       // 記号の一覧から足された候補（部首の「長」＝ながい など）は読みの一部しか表さないので、選び直しの対象にしない
       // （「社」の後の「ながい」が「社長」になっていた）。第1候補のときはそのまま
       if (c > 0 && cand.category == converter::Candidate::SYMBOL) continue;
+      // 第1候補がユーザー辞書の語なら、ほかの候補とは入れ替えない
+      if (c > 0 && (s.candidate(0).attributes & converter::Attribute::USER_DICTIONARY) &&
+          !(cand.attributes & converter::Attribute::USER_DICTIONARY)) {
+        continue;
+      }
       if (!seen.insert(cand.value).second) continue;
       idx[i].push_back(static_cast<int>(c));
       inputs[i].values.push_back(cand.value);
@@ -481,11 +487,16 @@ bool ContextRerankRewriter::Rewrite(const ConversionRequest& request, Segments* 
   }
   // 確定した語の続きとして打った、助詞だけの最初の文節（「記入期間」＋「に｜相当する」の「に」）は、
   // ひらがなの助詞を第1候補にする。Mozc は文の先頭に助詞が来ることを想定しておらず、
-  // 候補に入らないことがある（二・似・荷…だけになる）。前の文脈が句読点などで終わる・ないときはしない
+  // 候補に入らないことがある（二・似・荷…だけになる）。前の文脈が句読点などで終わる・ないときはしない。
+  // 次の文節が数に付く語（「二｜度目」の「度目」）で始まるときもしない
   {
     Segment* seg = segments->mutable_conversion_segment(0);
+    const bool before_counter =
+        pos_matcher_ != nullptr && n > 1 &&
+        segments->conversion_segment(1).candidates_size() > 0 &&
+        pos_matcher_->IsCounterSuffixWord(segments->conversion_segment(1).candidate(0).lid);
     if (seg->candidates_size() > 0 && IsParticle(seg->key()) && EndsWithWordChar(ctx_text) &&
-        seg->candidate(0).value != seg->key()) {
+        !before_counter && seg->candidate(0).value != seg->key()) {
       int found = -1;
       for (size_t c = 0; c < seg->candidates_size(); ++c) {
         if (seg->candidate(static_cast<int>(c)).value == seg->key()) {

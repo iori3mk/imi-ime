@@ -875,6 +875,16 @@ bool UserSegmentHistoryRewriter::Rewrite(const ConversionRequest& request,
       }
     }
 
+    // 第1候補がユーザー辞書の語なら、ほかの候補を学習で上に出さない（登録する前に選んだ字より、
+    // 登録した語を出す）。同じ読みの登録語どうしは学習で入れ替える
+    if (segment->candidate(0).attributes &
+        converter::Attribute::USER_DICTIONARY) {
+      std::erase_if(scores, [](const ScoreCandidate& s) {
+        return !(s.candidate->attributes &
+                 converter::Attribute::USER_DICTIONARY);
+      });
+    }
+
     if (scores.empty()) {
       continue;
     }

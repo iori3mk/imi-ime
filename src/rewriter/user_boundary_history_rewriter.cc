@@ -38,6 +38,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -47,6 +48,7 @@
 #include "base/config_file_stream.h"
 #include "base/file_util.h"
 #include "base/vlog.h"
+#include "converter/attribute.h"
 #include "converter/segments.h"
 #include "protocol/config.pb.h"
 #include "request/conversion_request.h"
@@ -162,6 +164,39 @@ class SegmentsKey {
   const std::vector<uint8_t> char_sizes_;  // sizes in chars (1 for "あ")
 };
 
+// segments の seg_idx から seg_size 個の文節を sizes（文字数）の区切りに変えると、第1候補が
+// ユーザー辞書の語である文節の始まりか終わりが区切りでなくなるか
+bool CutsUserDictionaryWord(const Segments& segments, size_t seg_idx,
+                            size_t seg_size,
+                            const std::array<uint8_t, 8>& sizes) {
+  absl::btree_set<size_t> bounds;
+  size_t pos = 0;
+  for (uint8_t len : sizes) {
+    if (len == 0) break;
+    pos += len;
+    bounds.insert(pos);
+  }
+  pos = 0;
+  for (size_t i = seg_idx; i < seg_idx + seg_size; ++i) {
+    const Segment& segment = segments.conversion_segment(i);
+    const size_t begin = pos;
+    pos += segment.key_len();
+    if (segment.candidates_size() == 0 ||
+        !(segment.candidate(0).attributes &
+          converter::Attribute::USER_DICTIONARY)) {
+      continue;
+    }
+    if ((begin != 0 && !bounds.contains(begin)) || !bounds.contains(pos)) {
+      return true;
+    }
+    // 語の中に区切りが入る
+    if (bounds.upper_bound(begin) != bounds.lower_bound(pos)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
 UserBoundaryHistoryRewriter::UserBoundaryHistoryRewriter() { Reload(); }
@@ -262,6 +297,11 @@ UserBoundaryHistoryRewriter::CheckResizeSegmentsRequest(
       }
 
       const std::array<uint8_t, 8> updated_array = value->ToUint8Array();
+      // ユーザー辞書の語が第1候補の文節は、覚えた区切りで分けたりつないだりしない
+      // （登録する前に区切り直した読みでも、登録した語を出す）
+      if (CutsUserDictionaryWord(segments, seg_idx, seg_size, updated_array)) {
+        continue;
+      }
       MOZC_VLOG(2) << "ResizeSegment key: " << key << " segments: [" << seg_idx
                    << ", " << seg_size << "] "
                    << "resize: [" << absl::StrJoin(updated_array, " ") << "]";

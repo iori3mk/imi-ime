@@ -163,6 +163,7 @@ mozc_cc_library(
         "//base:system_util",
         "//base:util",
         "//converter:segments",
+        "//dictionary:pos_matcher",
         "//request:conversion_request",
         "//rewriter:rewriter_interface",
         "@com_google_absl//absl/base:core_headers",

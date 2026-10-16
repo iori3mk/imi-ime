@@ -472,6 +472,44 @@ TEST_F(UserSegmentHistoryRewriterTest, BasicTest) {
 }
 
 // Test for Issue 2155278
+// 第1候補がユーザー辞書の語なら、学習した別の候補を上に出さない。同じ読みの登録語どうしは学習で入れ替える
+TEST_F(UserSegmentHistoryRewriterTest, KeepUserDictionaryCandidate) {
+  Segments segments;
+  std::unique_ptr<UserSegmentHistoryRewriter> rewriter(
+      CreateUserSegmentHistoryRewriter());
+  rewriter->Clear();
+  const ConversionRequest convreq = CreateConversionRequest();
+
+  // 登録する前に candidate2 を選んだ
+  InitSegments(&segments, 1);
+  segments.mutable_segment(0)->move_candidate(2, 0);
+  segments.mutable_segment(0)->mutable_candidate(0)->attributes |=
+      converter::Attribute::RERANKED;
+  segments.mutable_segment(0)->set_segment_type(Segment::FIXED_VALUE);
+  rewriter->Finish(convreq, segments);
+
+  // 登録した語（candidate0）が第1候補なら、そのまま
+  InitSegments(&segments, 1);
+  segments.mutable_segment(0)->mutable_candidate(0)->attributes |=
+      converter::Attribute::USER_DICTIONARY;
+  rewriter->Rewrite(convreq, &segments);
+  EXPECT_EQ(segments.segment(0).candidate(0).value, "candidate0");
+
+  // candidate2 も登録した語なら、学習で上に出す
+  InitSegments(&segments, 1);
+  segments.mutable_segment(0)->mutable_candidate(0)->attributes |=
+      converter::Attribute::USER_DICTIONARY;
+  segments.mutable_segment(0)->mutable_candidate(2)->attributes |=
+      converter::Attribute::USER_DICTIONARY;
+  rewriter->Rewrite(convreq, &segments);
+  EXPECT_EQ(segments.segment(0).candidate(0).value, "candidate2");
+
+  // 登録した語でなければ、今までどおり学習した候補を出す
+  InitSegments(&segments, 1);
+  rewriter->Rewrite(convreq, &segments);
+  EXPECT_EQ(segments.segment(0).candidate(0).value, "candidate2");
+}
+
 TEST_F(UserSegmentHistoryRewriterTest, SequenceTest) {
   Segments segments;
   std::unique_ptr<UserSegmentHistoryRewriter> rewriter(

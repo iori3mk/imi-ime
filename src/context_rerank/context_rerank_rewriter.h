@@ -34,6 +34,7 @@
 #include "context_rerank/context_reranker.h"
 #include "context_rerank/lm_scorer.h"
 #include "converter/segments.h"
+#include "dictionary/pos_matcher.h"
 #include "request/conversion_request.h"
 #include "rewriter/rewriter_interface.h"
 
@@ -41,7 +42,8 @@ namespace mozc::context_rerank {
 
 class ContextRerankRewriter : public RewriterInterface {
  public:
-  ContextRerankRewriter();
+  // pos_matcher は品詞を見る決まりだけに使う（nullptr なら、その決まりを使わない）
+  explicit ContextRerankRewriter(const dictionary::PosMatcher* pos_matcher = nullptr);
   ~ContextRerankRewriter() override;
   int capability(const ConversionRequest& request) const override {
     return RewriterInterface::CONVERSION;
@@ -50,6 +52,7 @@ class ContextRerankRewriter : public RewriterInterface {
   void Finish(const ConversionRequest& request, const Segments& segments) override;
 
  private:
+  const dictionary::PosMatcher* pos_matcher_ = nullptr;
   struct Job {
     std::string key, prefix, base;
     std::vector<AltSet> alts;
