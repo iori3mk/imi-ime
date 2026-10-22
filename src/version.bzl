@@ -32,7 +32,7 @@ MAJOR = 1
 MINOR = 1
 
 # IMi: the third number of the version (MAJOR.MINOR.BUILD_OSS).
-BUILD_OSS = 3
+BUILD_OSS = 4
 
 # Number to be increased. This value may be replaced by other tools.
 BUILD = BUILD_OSS
