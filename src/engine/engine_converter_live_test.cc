@@ -233,6 +233,27 @@ TEST_F(EngineConverterLiveTest, CommitWhileLmPendingUsesShownCandidates) {
   EXPECT_EQ(output.result().value(), "亜言うえ");
 }
 
+// 仮名が設定の文字数（既定は2）より少ないうちは変換せず、仮名のまま表示する。
+// 末尾のまだ仮名になっていないローマ字は数えない
+TEST_F(EngineConverterLiveTest, KeepKanaBelowMinChars) {
+  EXPECT_CALL(*mock_converter_, StartConversion(_, _))
+      .WillOnce(DoAll(SetArgPointee<1>(MakeSegments({{"きる", "切る"}})), Return(true)));
+  composer_->InsertCharacterPreedit("き");
+  converter_->UpdateLivePreedit(*composer_, context_);
+  EXPECT_EQ(Preedit(), "き");
+  composer_->InsertCharacterPreedit("r");
+  converter_->UpdateLivePreedit(*composer_, context_);
+  EXPECT_EQ(Preedit(), "きｒ");
+  composer_->Backspace();
+  composer_->InsertCharacterPreedit("る");
+  converter_->UpdateLivePreedit(*composer_, context_);
+  EXPECT_EQ(Preedit(), "切る");
+
+  config_->set_imi_live_min_chars(3);
+  converter_->UpdateLivePreedit(*composer_, context_);
+  EXPECT_EQ(Preedit(), "きる");
+}
+
 }  // namespace
 }  // namespace engine
 }  // namespace mozc

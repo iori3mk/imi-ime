@@ -558,6 +558,8 @@ void ConfigDialog::ConvertFromProto(const config::Config& config) {
                 config::Config::OVERLAY_HENKAN_MUHENKAN_TO_IME_ON_OFF) !=
       config.overlay_keymaps().end());
   imiLiveConversionCheckBox_->setChecked(config.imi_live_conversion());
+  imiLiveMinCharsSpinBox_->setValue(static_cast<int>(config.imi_live_min_chars()));
+  imiLiveMinCharsSpinBox_->setEnabled(config.imi_live_conversion());
   imiUseLmCheckBox_->setChecked(config.imi_use_lm());
   imiUseContextCheckBox_->setChecked(config.imi_use_context());
   imiShowCandidatesCheckBox_->setChecked(config.imi_show_candidates_on_convert());
@@ -672,6 +674,7 @@ void ConfigDialog::ConvertToProto(config::Config* config) const {
     }
   }
   config->set_imi_live_conversion(imiLiveConversionCheckBox_->isChecked());
+  config->set_imi_live_min_chars(static_cast<uint32_t>(imiLiveMinCharsSpinBox_->value()));
   config->set_imi_use_lm(imiUseLmCheckBox_->isChecked());
   config->set_imi_use_context(imiUseContextCheckBox_->isChecked());
   config->set_imi_show_candidates_on_convert(imiShowCandidatesCheckBox_->isChecked());
@@ -1147,6 +1150,11 @@ void ConfigDialog::SetupImiTab() {
 
   imiHenkanMuhenkanCheckBox_ = new QCheckBox(this);
   imiLiveConversionCheckBox_ = new QCheckBox(this);
+  imiLiveMinCharsSpinBox_ = new QSpinBox(this);
+  imiLiveMinCharsSpinBox_->setRange(1, 10);
+  imiLiveMinCharsSpinBox_->setSuffix(QString::fromUtf8(" 文字から"));
+  QObject::connect(imiLiveConversionCheckBox_, &QCheckBox::toggled, imiLiveMinCharsSpinBox_,
+                   &QSpinBox::setEnabled);
   imiUseLmCheckBox_ = new QCheckBox(this);
   imiUseContextCheckBox_ = new QCheckBox(this);
   imiShowCandidatesCheckBox_ = new QCheckBox(this);
@@ -1158,6 +1166,9 @@ void ConfigDialog::SetupImiTab() {
     QVBoxLayout* c1 = add_card(page);
     add_check(c1, imiLiveConversionCheckBox_, "入力に合わせて変換する（同時変換）",
               "オフにすると、Space キーを押すまで仮名のまま表示します。");
+    add_row(c1, "同時変換を始める文字数",
+            "打った仮名がこの文字数より少ないうちは、仮名のまま表示します（Space キーでは変換できます）。",
+            imiLiveMinCharsSpinBox_);
     add_check(c1, imiUseLmCheckBox_, "前後の文脈で漢字を選び直す",
               "小さな言語モデルで文全体の自然さを比べます。オフにすると軽くなりますが、精度は少し下がります。");
     add_check(c1, imiUseContextCheckBox_, "前に確定した文も手がかりにする",

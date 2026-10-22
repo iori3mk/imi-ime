@@ -1332,6 +1332,10 @@ void EngineConverter::UpdateLivePreedit(const composer::Composer& composer,
   if (pending_chars == preedit.size()) {
     return;  // 全部ローマ字なら仮名のまま出す
   }
+  // 仮名が設定の文字数より少ないうちは仮名のまま出す（1文字だけ打つときは仮名のことが多い）
+  if (preedit.size() - pending_chars < config_->imi_live_min_chars()) {
+    return;
+  }
   composer::Composer kana = composer;
   for (size_t i = 0; i < pending_chars; ++i) {
     kana.Backspace();

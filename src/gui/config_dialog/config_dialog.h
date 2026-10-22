@@ -106,6 +106,7 @@ class ConfigDialog : public QDialog, private Ui::ConfigDialog {
   void SetupImiTab();
   QCheckBox* imiHenkanMuhenkanCheckBox_ = nullptr;
   QCheckBox* imiLiveConversionCheckBox_ = nullptr;
+  QSpinBox* imiLiveMinCharsSpinBox_ = nullptr;
   QCheckBox* imiUseLmCheckBox_ = nullptr;
   QCheckBox* imiUseContextCheckBox_ = nullptr;
   QCheckBox* imiShowCandidatesCheckBox_ = nullptr;

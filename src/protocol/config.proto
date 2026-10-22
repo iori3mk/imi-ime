@@ -398,6 +398,8 @@ message Config {
   // 入力モード（ひらがな・半角英数など）をすべてのアプリで共通にする。IME の部品（TIP）は設定ファイルを
   // 読まないので、設定画面が HKCU\Software\IMi の ShareInputMode にも書く
   optional bool imi_share_input_mode = 1008 [default = true];
+  // 同時変換を始める文字数（仮名の数。これより少ないうちは仮名のまま表示する）
+  optional uint32 imi_live_min_chars = 1009 [default = 2];
 
   //////////////////////////////////////////////////////////////
   //
