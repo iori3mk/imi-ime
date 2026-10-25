@@ -634,8 +634,8 @@ void VariantsRewriter::Finish(const ConversionRequest& request,
     if (candidate.attributes & Attribute::NO_VARIANTS_EXPANSION) {
       continue;
     }
-    // IMi：記号1文字の確定からは全角・半角を学習しない
-    if (CharacterFormManager::ImiIsSingleSymbol(segment.key())) {
+    // IMi：記号だけの確定からは全角・半角を学習しない
+    if (CharacterFormManager::ImiIsSymbolOnly(segment.key())) {
       continue;
     }
 
@@ -714,9 +714,9 @@ bool VariantsRewriter::Rewrite(const ConversionRequest& request,
   }
 
   for (Segment& segment : segments->conversion_segments()) {
-    // IMi：記号1文字の文節は、全角・半角を前回の形に合わせない
+    // IMi：記号だけの文節は、全角・半角を前回の形に合わせない
     std::optional<CharacterFormManager::ImiScopedIgnoreLastForm> ignore_last_form;
-    if (CharacterFormManager::ImiIsSingleSymbol(segment.key())) {
+    if (CharacterFormManager::ImiIsSymbolOnly(segment.key())) {
       ignore_last_form.emplace();
     }
     modified |= RewriteSegment(type, &segment);

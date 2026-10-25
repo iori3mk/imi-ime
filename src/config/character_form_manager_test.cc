@@ -553,6 +553,17 @@ TEST_F(CharacterFormManagerTest, NumberStyle) {
   }
 }
 
+TEST(CharacterFormManagerImiTest, IsSymbolOnly) {
+  EXPECT_TRUE(CharacterFormManager::ImiIsSymbolOnly("・"));
+  EXPECT_TRUE(CharacterFormManager::ImiIsSymbolOnly("（）"));
+  EXPECT_TRUE(CharacterFormManager::ImiIsSymbolOnly("「」"));
+  EXPECT_TRUE(CharacterFormManager::ImiIsSymbolOnly("()"));
+  EXPECT_FALSE(CharacterFormManager::ImiIsSymbolOnly(""));
+  EXPECT_FALSE(CharacterFormManager::ImiIsSymbolOnly("（かっこ）"));
+  EXPECT_FALSE(CharacterFormManager::ImiIsSymbolOnly("(1)"));
+  EXPECT_FALSE(CharacterFormManager::ImiIsSymbolOnly("あ"));
+}
+
 }  // namespace
 }  // namespace config
 }  // namespace mozc

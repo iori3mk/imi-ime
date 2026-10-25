@@ -2157,8 +2157,8 @@ void UserHistoryPredictor::Finish(const ConversionRequest& request,
     if (result.attributes & converter::Attribute::NO_HISTORY_LEARNING) {
       continue;
     }
-    // IMi：記号1文字の確定からは全角・半角を学習しない（VariantsRewriter::Finish と同じ）
-    if (config::CharacterFormManager::ImiIsSingleSymbol(result.key)) {
+    // IMi：記号だけの確定からは全角・半角を学習しない（VariantsRewriter::Finish と同じ）
+    if (config::CharacterFormManager::ImiIsSymbolOnly(result.key)) {
       continue;
     }
     // Trailing ASCII whitespace might be present in result.value (e.g.

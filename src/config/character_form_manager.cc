@@ -703,19 +703,22 @@ void CharacterFormManager::ClearHistory() {
   data_->GetConversionManager()->ClearHistory();
 }
 
-bool CharacterFormManager::ImiIsSingleSymbol(const absl::string_view str) {
-  if (str.empty() || Util::CharsLen(str) != 1) return false;
-  switch (Util::GetScriptType(str)) {
-    case Util::HIRAGANA:
-    case Util::KATAKANA:
-    case Util::KANJI:
-    case Util::NUMBER:
-    case Util::ALPHABET:
-    case Util::EMOJI:
-      return false;
-    default:
-      return true;
+bool CharacterFormManager::ImiIsSymbolOnly(const absl::string_view str) {
+  if (str.empty()) return false;
+  for (const absl::string_view c : Utf8AsChars(str)) {
+    switch (Util::GetScriptType(c)) {
+      case Util::HIRAGANA:
+      case Util::KATAKANA:
+      case Util::KANJI:
+      case Util::NUMBER:
+      case Util::ALPHABET:
+      case Util::EMOJI:
+        return false;
+      default:
+        break;
+    }
   }
+  return true;
 }
 
 CharacterFormManager::ImiScopedIgnoreLastForm::ImiScopedIgnoreLastForm() {

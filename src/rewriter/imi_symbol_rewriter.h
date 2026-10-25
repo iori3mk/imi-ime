@@ -1,11 +1,11 @@
-// IMi：記号1文字の変換では、学習で第1候補を変えない（2番目以降は学習の順のまま）。
+// IMi：記号だけの文節の変換では、学習で第1候補を変えない（2番目以降は学習の順のまま）。
 //
 // 「・」を一度「／」に変換すると、Mozc の学習（UserSegmentHistoryRewriter など）で次から「／」が第1候補に
-// なり、「・」のつもりで打った記号が別の記号になってしまう（利用者の指摘、2026-10-07）。
-// 文節の読みが記号1文字のときは、学習の処理の前の第1候補を覚えておき（ImiSymbolMarkRewriter。選んだ候補の
+// なり、「・」のつもりで打った記号が別の記号になってしまう。「「」」を一度「【】」にしたときも同じ。
+// 文節の読みが記号だけのときは、学習の処理の前の第1候補を覚えておき（ImiSymbolMarkRewriter。選んだ候補の
 // 学習の UserSegmentHistoryRewriter より前に置く）、書き換えの処理の最後で第1候補に戻す（ImiSymbolRewriter）。打った字と同じ候補を
 // 目印にしないのは、「!」の第1候補が全角の「！」のように、学習なしでも読みと違う表記が第1候補になるため。
-// 全角・半角を前回の形に合わせる仕組み（CharacterFormManager の LAST_FORM）は、記号1文字では使わず、
+// 全角・半角を前回の形に合わせる仕組み（CharacterFormManager の LAST_FORM）は、記号だけの文節では使わず、
 // 学習もしない（variants_rewriter.cc・user_history_predictor.cc の「IMi」）。
 
 #ifndef MOZC_REWRITER_IMI_SYMBOL_REWRITER_H_

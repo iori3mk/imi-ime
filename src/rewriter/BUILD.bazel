@@ -1518,7 +1518,7 @@ mozc_cc_test(
     ],
 )
 
-# IMi：記号1文字の変換では学習で第1候補を変えない
+# IMi：記号だけの変換では学習で第1候補を変えない
 mozc_cc_library(
     name = "imi_symbol_rewriter",
     srcs = ["imi_symbol_rewriter.cc"],

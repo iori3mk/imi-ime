@@ -138,9 +138,9 @@ class CharacterFormManager {
   // Returns the singleton instance.
   static CharacterFormManager* GetCharacterFormManager();
 
-  // IMi：記号1文字か（仮名・漢字・数字・英字・絵文字ではない1文字）。記号1文字の変換では、全角・半角を
-  // 前回の形に合わせず、その確定からも形を学習しない（第1候補を学習で変えない。利用者の指摘、2026-10-07）
-  static bool ImiIsSingleSymbol(absl::string_view str);
+  // IMi：記号だけか（仮名・漢字・数字・英字・絵文字を含まない。「・」「（）」「「」」など）。記号だけの文節の
+  // 変換では、全角・半角を前回の形に合わせず、その確定からも形を学習しない（第1候補を学習で変えない）
+  static bool ImiIsSymbolOnly(absl::string_view str);
 
   // IMi：生きているあいだ、このスレッドでは「前回の形」（LAST_FORM）を学習なしの既定（全角）として扱う
   class ImiScopedIgnoreLastForm {

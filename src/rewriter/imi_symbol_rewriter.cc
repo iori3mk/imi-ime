@@ -12,7 +12,7 @@
 namespace mozc {
 namespace {
 
-// 記号1文字の文節の（読み, 学習の前の第1候補）。文節の順
+// 記号だけの文節の（読み, 学習の前の第1候補）。文節の順
 thread_local std::vector<std::pair<std::string, std::string>> g_marked;
 
 }  // namespace
@@ -20,7 +20,7 @@ thread_local std::vector<std::pair<std::string, std::string>> g_marked;
 bool ImiSymbolMarkRewriter::Rewrite(const ConversionRequest& request, Segments* segments) const {
   g_marked.clear();
   for (const Segment& segment : segments->conversion_segments()) {
-    if (!config::CharacterFormManager::ImiIsSingleSymbol(segment.key()) || segment.candidates_size() == 0) continue;
+    if (!config::CharacterFormManager::ImiIsSymbolOnly(segment.key()) || segment.candidates_size() == 0) continue;
     g_marked.emplace_back(segment.key(), segment.candidate(0).value);
   }
   return false;
@@ -30,7 +30,7 @@ bool ImiSymbolRewriter::Rewrite(const ConversionRequest& request, Segments* segm
   bool changed = false;
   size_t next = 0;
   for (Segment& segment : segments->conversion_segments()) {
-    if (!config::CharacterFormManager::ImiIsSingleSymbol(segment.key()) || segment.candidates_size() < 2) continue;
+    if (!config::CharacterFormManager::ImiIsSymbolOnly(segment.key()) || segment.candidates_size() < 2) continue;
     // 学習の処理のあいだに文節の区切りが変わったときは、読みが合うものだけを使う
     while (next < g_marked.size() && g_marked[next].first != segment.key()) ++next;
     if (next >= g_marked.size()) break;
