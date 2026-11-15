@@ -162,20 +162,64 @@ mozc_cc_library(
 )
 
 mozc_cc_library(
+    name = "choice_store",
+    srcs = ["choice_store.cc"],
+    hdrs = ["choice_store.h"],
+    deps = [
+        "//storage:lru_storage",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+mozc_cc_test(
+    name = "choice_store_test",
+    size = "small",
+    srcs = ["choice_store_test.cc"],
+    deps = [
+        ":choice_store",
+        "//base:file_util",
+        "//base/file:temp_dir",
+        "//testing:gunit_main",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+mozc_cc_test(
+    name = "context_rerank_rewriter_test",
+    size = "small",
+    srcs = ["context_rerank_rewriter_test.cc"],
+    deps = [
+        ":context_rerank_rewriter",
+        ":context_store",
+        "//base:file_util",
+        "//base:system_util",
+        "//config:config_handler",
+        "//converter:segments",
+        "//protocol:config_cc_proto",
+        "//request:conversion_request",
+        "//testing:gunit_main",
+        "//testing:mozctest",
+    ],
+)
+
+mozc_cc_library(
     name = "context_rerank_rewriter",
     srcs = ["context_rerank_rewriter.cc"],
     hdrs = ["context_rerank_rewriter.h"],
     deps = [
+        ":choice_store",
         ":context_reranker",
         ":context_store",
         ":live_conversion",
         ":lm_scorer",
         ":mkey",
+        "//base:config_file_stream",
         "//base:file_stream",
         "//base:file_util",
         "//base:system_util",
         "//base:util",
         "//converter:segments",
+        "//protocol:config_cc_proto",
         "//dictionary:pos_matcher",
         "//request:conversion_request",
         "//rewriter:rewriter_interface",

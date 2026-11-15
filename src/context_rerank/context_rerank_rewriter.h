@@ -12,6 +12,9 @@
 // B は、同時変換の表示用の変換（live_conversion.h の ScopedLivePreview の中）では裏のスレッドで計算し、
 // 結果をキャッシュに置く（表示は T0+K5 までで返し、次の問い合わせで B の結果を使う）。
 // それ以外の変換（Space による変換、converter_main）はその場で計算する（キャッシュにあれば使う）。
+//
+// 利用者が候補を選び直して確定した組（出ていた候補 → 選んだ候補）は覚えておき、選んだ候補が
+// 第1候補のときに、出ていた候補へは入れ替えない（choice_store.h）。
 
 #ifndef MOZC_CONTEXT_RERANK_CONTEXT_RERANK_REWRITER_H_
 #define MOZC_CONTEXT_RERANK_CONTEXT_RERANK_REWRITER_H_
@@ -31,6 +34,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 
+#include "context_rerank/choice_store.h"
 #include "context_rerank/context_reranker.h"
 #include "context_rerank/lm_scorer.h"
 #include "converter/segments.h"
@@ -50,6 +54,7 @@ class ContextRerankRewriter : public RewriterInterface {
   }
   bool Rewrite(const ConversionRequest& request, Segments* segments) const override;
   void Finish(const ConversionRequest& request, const Segments& segments) override;
+  void Clear() override;  // 学習履歴の消去：利用者が直した入れ替えの記録を消す
 
  private:
   const dictionary::PosMatcher* pos_matcher_ = nullptr;
@@ -68,6 +73,8 @@ class ContextRerankRewriter : public RewriterInterface {
   void WorkerLoop();
 
   std::unique_ptr<ContextReranker> reranker_;
+  // 利用者が直した入れ替え（choice_store.h）。直された向きには選び直さない
+  std::unique_ptr<ChoiceStore> choice_;
   std::unique_ptr<LmScorer> lm_;
   double lam_ = 0.3, lam2_ = 1.5, delta_ = 2;
   int window_ = 4, margin_ = 4000, max_alt_ = 5, n_cand_ = 8, context_chars_ = 60;

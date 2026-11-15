@@ -17,6 +17,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "base/config_file_stream.h"
 #include "base/file_stream.h"
 #include "base/file_util.h"
 #include "base/system_util.h"
@@ -26,6 +27,7 @@
 #include "context_rerank/mkey.h"
 #include "converter/candidate.h"
 #include "converter/segments.h"
+#include "protocol/config.pb.h"
 #include "request/conversion_request.h"
 
 namespace mozc::context_rerank {
@@ -101,6 +103,34 @@ std::string CacheKey(absl::string_view prefix, absl::string_view base,
   return key;
 }
 
+// 利用者が直した入れ替えの記録（choice_store.h）に使う（読み, 第1候補の語, もう一方の語）。
+// 内容語が違えば内容語どうしで比べる（「斉藤様」で覚えた組が「斉藤様に」の文節にも効く）。
+// 内容語が同じなら文節の全体で比べる。比べられなければ false
+bool ChoicePair(const Segment& segment, const converter::Candidate& top,
+                const converter::Candidate& other, absl::string_view* reading,
+                absl::string_view* top_word, absl::string_view* other_word) {
+  if (!top.content_key.empty() && top.content_key == other.content_key &&
+      top.content_value != other.content_value) {
+    *reading = top.content_key;
+    *top_word = top.content_value;
+    *other_word = other.content_value;
+    return true;
+  }
+  if (top.value == other.value) return false;
+  *reading = segment.key();
+  *top_word = top.value;
+  *other_word = other.value;
+  return true;
+}
+
+// 学習を使ってよい変換か（Mozc の学習と同じ条件：シークレットモードでない、履歴を使う設定）
+bool UsesHistory(const ConversionRequest& request) {
+  return !request.incognito_mode() && request.options().enable_user_history_for_conversion &&
+         request.config().history_learning_level() != config::Config::NO_HISTORY;
+}
+
+constexpr char kChoiceFileName[] = "user://imi_choice.db";
+
 }  // namespace
 
 ContextRerankRewriter::ContextRerankRewriter(const dictionary::PosMatcher* pos_matcher)
@@ -147,6 +177,7 @@ ContextRerankRewriter::ContextRerankRewriter(const dictionary::PosMatcher* pos_m
     return;
   }
   reranker_ = std::move(reranker);
+  choice_ = std::make_unique<ChoiceStore>(ConfigFileStream::GetFileName(kChoiceFileName));
   {
     std::ifstream vf(dir + "/verb_class.tsv");
     std::string line;
@@ -341,6 +372,7 @@ bool ContextRerankRewriter::Rewrite(const ConversionRequest& request, Segments* 
   if (n == 0) return false;
   std::vector<std::vector<int>> idx(n);  // 対象にした候補の、Mozc の候補の番号
   std::vector<SegmentInput> inputs(n);
+  const bool use_choice = choice_ != nullptr && UsesHistory(request);
   for (size_t i = 0; i < n; ++i) {
     const Segment& s = segments->conversion_segment(i);
     inputs[i].reading = std::string(s.key());
@@ -353,6 +385,12 @@ bool ContextRerankRewriter::Rewrite(const ConversionRequest& request, Segments* 
       // 第1候補がユーザー辞書の語なら、ほかの候補とは入れ替えない
       if (c > 0 && (s.candidate(0).attributes & converter::Attribute::USER_DICTIONARY) &&
           !(cand.attributes & converter::Attribute::USER_DICTIONARY)) {
+        continue;
+      }
+      // 利用者がこの候補の代わりに第1候補を選んだことがあれば、この候補には入れ替えない
+      if (absl::string_view r, top, other;
+          c > 0 && use_choice && ChoicePair(s, s.candidate(0), cand, &r, &top, &other) &&
+          choice_->Prefers(r, top, other)) {
         continue;
       }
       if (!seen.insert(cand.value).second) continue;
@@ -539,6 +577,27 @@ void ContextRerankRewriter::Finish(const ConversionRequest& request, const Segme
   for (const auto& [v, r] : committed) text += v;
   DebugLog("commit", text);
   ContextStore::Get().Commit(committed);
+  // 利用者が候補を選び直して確定した文節：出ていた候補（選んだ候補が先頭に移ったので2番目）の
+  // 代わりに選んだ、と覚える。学習する条件は Mozc の学習と同じ
+  if (choice_ == nullptr || request.request_type() != ConversionRequest::CONVERSION ||
+      !UsesHistory(request) ||
+      request.config().history_learning_level() != config::Config::DEFAULT_HISTORY) {
+    return;
+  }
+  for (const Segment& s : segments.conversion_segments()) {
+    if (s.candidates_size() < 2) continue;
+    const converter::Candidate& chosen = s.candidate(0);
+    if (!(chosen.attributes & converter::Attribute::RERANKED) ||
+        (chosen.attributes & converter::Attribute::NO_LEARNING)) {
+      continue;
+    }
+    absl::string_view r, top, other;
+    if (ChoicePair(s, chosen, s.candidate(1), &r, &top, &other)) choice_->Learn(r, top, other);
+  }
+}
+
+void ContextRerankRewriter::Clear() {
+  if (choice_) choice_->Clear();
 }
 
 }  // namespace mozc::context_rerank

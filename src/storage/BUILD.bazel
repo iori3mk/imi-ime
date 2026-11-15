@@ -44,6 +44,7 @@ mozc_cc_library(
     hdrs = ["lru_storage.h"],
     visibility = [
         "//config:__pkg__",
+        "//context_rerank:__pkg__",
         "//rewriter:__pkg__",
     ],
     deps = [
