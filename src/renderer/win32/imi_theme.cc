@@ -91,12 +91,16 @@ ImiTheme MakeTheme(int style, bool dark) {
   return t;
 }
 
-bool IsFontInstalled(const std::wstring& face) {
+}  // namespace
+
+bool ImiIsFontInstalled(const std::wstring& face) {
   LOGFONTW query = {};
   query.lfCharSet = DEFAULT_CHARSET;
-  if (face.empty() || wcscpy_s(query.lfFaceName, face.c_str()) != 0) {
+  // 字体の名前は 31 文字まで。入りきらない名前を wcscpy_s に渡すと、失敗を返さずにプログラムが止まる
+  if (face.empty() || face.size() >= LF_FACESIZE) {
     return false;
   }
+  wcscpy_s(query.lfFaceName, face.c_str());
   bool found = false;
   const HDC dc = ::GetDC(nullptr);
   ::EnumFontFamiliesExW(
@@ -109,6 +113,8 @@ bool IsFontInstalled(const std::wstring& face) {
   ::ReleaseDC(nullptr, dc);
   return found;
 }
+
+namespace {
 
 // 呼ぶ側で mu を持つ
 bool RefreshLocked(State& s) {
@@ -218,7 +224,7 @@ void ApplyImiTheme(RendererStyle* style) {
 
 std::wstring ImiThemeFontFace() {
   for (const std::wstring& f : ImiTheme::Current().fonts) {
-    if (IsFontInstalled(f)) return f;
+    if (ImiIsFontInstalled(f)) return f;
   }
   return L"";
 }

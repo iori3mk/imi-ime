@@ -51,6 +51,7 @@ jobs:
           --
           //composer/... //context_rerank/... //converter/... //dictionary/...
           //engine/... //prediction/... //rewriter/... //session/... //win32/tip/...
+          //renderer/win32:imi_theme_test
 
       - name: Collect failing test logs
         if: failure()

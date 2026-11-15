@@ -118,6 +118,18 @@ mozc_cc_library(
     ],
 )
 
+mozc_cc_test(
+    name = "imi_theme_test",
+    size = "small",
+    srcs = ["imi_theme_test.cc"],
+    tags = MOZC_TAGS.WIN_ONLY,
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = [
+        ":imi_theme",
+        "//testing:gunit_main",
+    ],
+)
+
 mozc_cc_library(
     name = "win32_dpi_util",
     srcs = ["win32_dpi_util.cc"],

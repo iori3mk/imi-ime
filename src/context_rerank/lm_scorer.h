@@ -41,14 +41,22 @@ class LmScorer {
   LmScorer();
   ~LmScorer();
   // assets：pieces.tsv・norm.tsv・basep_int8.onnx・alt_int8.onnx・bos_kv.f32・bos_lp.f32 のあるディレクトリ
+  // モデルのファイルがない・壊れているときは false（B を使わない。IME 自体は動く）
   // precision：int8（既定）または fp32（basep_<precision>.onnx・alt_<precision>.onnx を読む）
   // use_arena：ONNX Runtime の作業用のメモリの溜め置きを使うか（rerank_config の ort_arena。既定は使わない）
   bool Load(const std::string& assets, int threads, const std::string& precision = "int8", bool use_arena = false);
+  // 計算に失敗したとき（メモリが足りないなど）は空を返す（選び直さない）
   std::vector<AltScores> Score(absl::string_view prefix, absl::string_view base,
                                const std::vector<AltSet>& alts, int window) const;
   const SpUnigram& tokenizer() const { return sp_; }
 
  private:
+  // モデルを読む。読めなければ ONNX Runtime の例外を投げる
+  bool LoadModel(const std::string& assets, int threads, const std::string& precision,
+                 bool use_arena);
+  std::vector<AltScores> ScoreImpl(absl::string_view prefix, absl::string_view base,
+                                   const std::vector<AltSet>& alts, int window) const;
+
   SpUnigram sp_;
   std::unique_ptr<Ort::Env> env_;
   // basep と alt は同じ重みを使う。並べ替え済みの重み（prepack）を2つのセッションで共有して、メモリを1つ分にする

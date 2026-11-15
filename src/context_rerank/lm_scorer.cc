@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -91,6 +92,22 @@ bool LmScorer::Load(const std::string& assets, int threads,
     return false;
   }
 #endif  // _WIN32
+  // ONNX Runtime は失敗を例外で知らせる。モデルのファイルがない・壊れているときに変換エンジンごと
+  // 止まらないよう、ここで受けて B を使わないことにする
+  try {
+    if (LoadModel(assets, threads, precision, use_arena)) return true;
+  } catch (const std::exception& e) {
+    std::cerr << "context_rerank: モデルを読めません: " << e.what() << std::endl;
+  }
+  alt_.reset();
+  basep_.reset();
+  prepacked_.reset();
+  env_.reset();
+  return false;
+}
+
+bool LmScorer::LoadModel(const std::string& assets, int threads,
+                         const std::string& precision, bool use_arena) {
   env_ = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "context_rerank");
   Ort::SessionOptions opts;
   opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
@@ -134,6 +151,19 @@ std::vector<AltScores> LmScorer::Score(absl::string_view prefix,
                                        absl::string_view base,
                                        const std::vector<AltSet>& alts,
                                        int window) const {
+  if (!basep_ || !alt_) return {};
+  try {
+    return ScoreImpl(prefix, base, alts, window);
+  } catch (const std::exception& e) {
+    std::cerr << "context_rerank: B の計算に失敗しました: " << e.what() << std::endl;
+    return {};
+  }
+}
+
+std::vector<AltScores> LmScorer::ScoreImpl(absl::string_view prefix,
+                                           absl::string_view base,
+                                           const std::vector<AltSet>& alts,
+                                           int window) const {
   std::vector<int> pre = {bos_id_};
   if (!prefix.empty()) {
     const std::vector<int> p = sp_.Encode(prefix);

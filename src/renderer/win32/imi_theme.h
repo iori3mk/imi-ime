@@ -47,6 +47,9 @@ struct ImiTheme {
 // 描画の色と大きさを、今のスタイルで差し替える
 void ApplyImiTheme(RendererStyle* style);
 
+// その名前の字体が入っているか（空の名前と、字体の名前の上限の 31 文字を超える名前は false）
+bool ImiIsFontInstalled(const std::wstring& face);
+
 // 字体の候補のうち、入っている最初のもの（なければ空）
 std::wstring ImiThemeFontFace();
 

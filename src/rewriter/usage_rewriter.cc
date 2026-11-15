@@ -229,11 +229,10 @@ bool UsageRewriter::Rewrite(const ConversionRequest& request,
 
       // IMi：次に、語の意味の辞書（ウィクショナリー）を引く。候補の内容語の表記で引き、
       // なければ候補の表記そのもので引く。番号は内蔵の用例辞書と重ならないよう、その後ろに置く
-      {
+      // ひらがなだけの候補（「あった」など）は引かない（感動詞の「あっ」などに当たってしまうため）
+      if (Util::GetScriptType(segment->candidate(j).value) != Util::HIRAGANA) {
         const converter::Candidate& c = segment->candidate(j);
         const context_rerank::WiktDict& wikt = context_rerank::WiktDict::Get();
-        // ひらがなだけの候補（「あった」など）は引かない（感動詞の「あっ」などに当たってしまうため）
-        if (Util::GetScriptType(c.value) == Util::HIRAGANA) continue;
         absl::string_view key = c.content_value, title, description;
         if (!wikt.Lookup(key, &title, &description)) {
           key = c.value;
